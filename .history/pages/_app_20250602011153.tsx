@@ -1,6 +1,6 @@
 // pages/_app.tsx
 import 'leaflet/dist/leaflet.css';
-import 'leaflet-draw/dist/leaflet.draw.css'; // Hapus baris ini jika Anda tidak memakai leaflet-draw
+import 'leaflet-draw/dist/leaflet.draw.css'; // (jika dibutuhkan)
 import '@/styles/globals.css';
 import type { AppProps } from 'next/app';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -13,7 +13,7 @@ export default function App({ Component, pageProps }: AppProps) {
       new QueryClient({
         defaultOptions: {
           queries: {
-            staleTime: 5 * 60 * 1000, // 5 menit
+            staleTime: 5 * 60 * 1000,
             refetchOnWindowFocus: false,
           },
         },

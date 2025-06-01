@@ -1,32 +1,28 @@
+// next.config.ts
 import type { NextConfig } from "next";
+import type { Configuration as WebpackConfiguration } from "webpack";
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
-
-  // Lewati pengecekan ESLint saat build
-  eslint: {
-    ignoreDuringBuilds: true,
-  },
-
   transpilePackages: [
     "leaflet",
     "react-leaflet",
     "leaflet-draw",
     "react-leaflet-draw",
   ],
-
-  webpack: (config: any, { isServer }: { isServer: boolean }) => {
-    // Hanya jalankan jika tidak pakai Turbopack
+  webpack: (config: WebpackConfiguration, { isServer }) => {
+    // Hanya jalankan jika tidak menggunakan Turbopack
     if (!process.env.__NEXT_EXPERIMENTAL_TURBOPACK) {
+      // Alias 'leaflet$' (dengan $) agar hanya 'import "leaflet"' yang dialihkan,
+      // sementara 'import "leaflet/dist/leaflet.css"' tetap mencari berkas aslinya.
       config.resolve = config.resolve || {};
       config.resolve.alias = {
         ...(config.resolve.alias || {}),
-        // "leaflet$" agar hanya import "leaflet" saja yang dialihkan ke JS-nya,
-        // sementara import "leaflet/dist/leaflet.css" tetap mencari CSS di node_modules
+        // '$' artinya hanya modul "leaflet" (tanpa sub‐path) yang di‐alias ke JS-nya langsung
         "leaflet$": "leaflet/dist/leaflet.js",
       };
 
-      // Abaikan bundling leaflet di server
+      // Jika server‐side, abaikan paket leaflet dan leaflet-draw
       if (isServer) {
         config.externals = [
           ...(config.externals || []),
@@ -36,7 +32,7 @@ const nextConfig: NextConfig = {
         ];
       }
 
-      // Fallback untuk modul‐modul Node (fs, net, tls) agar tidak di‐bundle
+      // Agar modul Node semacam fs, net, tls tidak di‐bundle
       config.resolve.fallback = {
         ...(config.resolve.fallback || {}),
         fs: false,

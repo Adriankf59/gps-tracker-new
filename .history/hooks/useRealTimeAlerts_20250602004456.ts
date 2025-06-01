@@ -1,21 +1,15 @@
 // File: hooks/useRealTimeAlerts.ts
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import type {
+import {
   GeofenceEvent,
   DetectionResult,
-} from "@/lib/geofenceDetector";
-import {
+  GeofenceDetector,
   setVehiclesDetailForDetection,
-  useProjectGeofenceDetection,
+  Vehicle,
+  Geofence,
 } from "@/lib/geofenceDetector";
 import { toast } from "sonner";
-
-// Impor tipe kendaraan dan geofence dari GeofenceManager
-import type {
-  Vehicle as ProjectVehicle,
-  Geofence as ProjectGeofence,
-} from "@/components/GeofenceManager";
 
 interface AlertNotification {
   id: string;
@@ -25,8 +19,8 @@ interface AlertNotification {
 }
 
 interface UseRealTimeAlertsProps {
-  vehicles: ProjectVehicle[];
-  geofences: ProjectGeofence[];
+  vehicles: Vehicle[];
+  geofences: Geofence[];
   onNewAlert?: (alert: AlertNotification) => void;
   enableNotifications?: boolean;
   simulateVehicleMovement?: boolean;
@@ -44,47 +38,45 @@ export function useRealTimeAlerts({
   const [lastEventTime, setLastEventTime] = useState<Date | null>(null);
   const simulationInterval = useRef<NodeJS.Timeout | null>(null);
 
-  // Ambil fungsi deteksi dari hook useProjectGeofenceDetection
-  const {
-    detectVehicleEvents,
-    addOrUpdateGeofence,
-    removeGeofenceById,
-    clearAllLoadedGeofencesInDetector,
-    getVehicleStatusInGeofences,
-    resetVehicleStateInDetector,
-  } = useProjectGeofenceDetection();
+  // Ref untuk menyimpan instance GeofenceDetector
+  const detectorRef = useRef<GeofenceDetector | null>(null);
 
-  // Set detail kendaraan agar nama bisa terpasang
+  // Inisialisasi GeofenceDetector saat hook pertama kali dipakai
+  useEffect(() => {
+    detectorRef.current = new GeofenceDetector();
+    return () => {
+      // Jika GeofenceDetector memerlukan cleanup, tambahkan di sini (misalnya: detectorRef.current?.dispose())
+      detectorRef.current = null;
+    };
+  }, []);
+
+  // Set detail kendaraan untuk deteksi
   useEffect(() => {
     if (vehicles.length > 0) {
       setVehiclesDetailForDetection(vehicles);
     }
   }, [vehicles]);
 
-  // Set semua geofence aktif ke detector
+  // Set geofence aktif ke detector setiap kali daftar geofence berubah
   useEffect(() => {
-    // Hanya register geofence yang status-nya 'active'
+    if (!detectorRef.current) return;
     if (geofences.length > 0) {
-      geofences.forEach((g) => {
-        if (g.status === "active") {
-          addOrUpdateGeofence(g);
-        }
-      });
-    } else {
-      // Jika array geofences kosong, bersihkan semua
-      clearAllLoadedGeofencesInDetector();
+      const activeGeofences = geofences.filter((g) => g.status === "active");
+      detectorRef.current.setAllGeofences(activeGeofences);
     }
-  }, [geofences, addOrUpdateGeofence, clearAllLoadedGeofencesInDetector]);
+  }, [geofences]);
 
-  // Fungsi untuk memproses satu update posisi kendaraan
+  // Fungsi untuk memanggil deteksi event pada satu kendaraan
   const handleGeofenceEvent = useCallback(
     async (
-      vehicleId: ProjectVehicle["vehicle_id"],
+      vehicleId: string,
       position: [number, number],
       timestamp: Date = new Date()
     ): Promise<DetectionResult | null> => {
+      if (!detectorRef.current) return null;
+
       try {
-        const result: DetectionResult = await detectVehicleEvents(
+        const result: DetectionResult = await detectorRef.current.detectVehicleEvents(
           vehicleId,
           position,
           timestamp
@@ -98,7 +90,6 @@ export function useRealTimeAlerts({
             acknowledged: false,
           }));
 
-          // Tambahkan ke state (baru di depan)
           setAlerts((prev) => [...newAlerts, ...prev]);
           setLastEventTime(timestamp);
 
@@ -107,7 +98,7 @@ export function useRealTimeAlerts({
               onNewAlert(alert);
             }
 
-            // Jika event pelanggaran (violation) dan notifikasi diizinkan
+            // Jika tipe event adalah pelanggaran dan notifikasi diaktifkan
             if (
               alert.event.event_type.includes("violation") &&
               enableNotifications
@@ -129,12 +120,14 @@ export function useRealTimeAlerts({
                 }
               );
             } else if (enableNotifications) {
-              // Notifikasi biasa (masuk / keluar)
+              // Notifikasi normal (enter / exit)
               toast(
                 `📍 ${alert.event.vehicle_name} ${
                   alert.event.event_type === "enter" ? "entered" : "exited"
                 } ${alert.event.geofence_name}`,
-                { duration: 5000 }
+                {
+                  duration: 5000,
+                }
               );
             }
           });
@@ -146,10 +139,10 @@ export function useRealTimeAlerts({
         return null;
       }
     },
-    [detectVehicleEvents, onNewAlert, enableNotifications]
+    [onNewAlert, enableNotifications]
   );
 
-  // Simulasi gerakan kendaraan (untuk testing)
+  // Fungsi simulasi gerakan kendaraan (hanya untuk testing)
   const startSimulation = useCallback(() => {
     if (
       !simulateVehicleMovement ||
@@ -163,7 +156,7 @@ export function useRealTimeAlerts({
     setIsMonitoring(true);
 
     simulationInterval.current = setInterval(() => {
-      // Pilih kendaraan random
+      // Pilih kendaraan secara acak
       const randomVehicle =
         vehicles[Math.floor(Math.random() * vehicles.length)];
 
@@ -182,7 +175,7 @@ export function useRealTimeAlerts({
         indonesiaBounds.west +
         Math.random() * (indonesiaBounds.east - indonesiaBounds.west);
 
-      // 40% kesempatan untuk menghasilkan posisi dekat geofence
+      // 40% peluang untuk dekat salah satu geofence (agar event lebih sering muncul)
       if (Math.random() < 0.4 && geofences.length > 0) {
         const randomGeofence =
           geofences[Math.floor(Math.random() * geofences.length)];
@@ -191,16 +184,15 @@ export function useRealTimeAlerts({
           randomGeofence.type === "circle" &&
           randomGeofence.definition.center
         ) {
-          // Koordinat dekat tengah lingkaran
+          // Koordinat dekat pusat lingkaran
           const [centerLng, centerLat] =
             randomGeofence.definition.center;
           const radius = randomGeofence.definition.radius || 1000;
           const offsetLat =
-            (Math.random() - 0.5) * (radius / 111320) * 2; // meter → derajat latitude
+            (Math.random() - 0.5) * (radius / 111320) * 2; // Meter → derajat sekitar lat
           const offsetLng =
             (Math.random() - 0.5) *
-            (radius /
-              (111320 * Math.cos((centerLat * Math.PI) / 180))) *
+            (radius / (111320 * Math.cos((centerLat * Math.PI) / 180))) *
             2;
 
           handleGeofenceEvent(
@@ -211,7 +203,7 @@ export function useRealTimeAlerts({
           randomGeofence.type === "polygon" &&
           randomGeofence.definition.coordinates
         ) {
-          // Koordinat dekat pusat poligon
+          // Koordinat dekat titik tengah poligon
           const coords = randomGeofence.definition.coordinates[0];
           if (coords.length > 0) {
             const centerLat =
@@ -220,7 +212,7 @@ export function useRealTimeAlerts({
             const centerLng =
               coords.reduce((sum, coord) => sum + coord[0], 0) /
               coords.length;
-            const offsetLat = (Math.random() - 0.5) * 0.01;
+            const offsetLat = (Math.random() - 0.5) * 0.01; // sedikit offset
             const offsetLng = (Math.random() - 0.5) * 0.01;
 
             handleGeofenceEvent(
@@ -236,7 +228,7 @@ export function useRealTimeAlerts({
           randomLat,
         ]);
       }
-    }, 5000);
+    }, 5000); // Setiap 5 detik
   }, [vehicles, geofences, handleGeofenceEvent, simulateVehicleMovement]);
 
   const stopSimulation = useCallback(() => {
@@ -248,7 +240,7 @@ export function useRealTimeAlerts({
     console.log("🛑 Vehicle movement simulation stopped");
   }, []);
 
-  // Jika toggle simulasi berubah, jalankan atau hentikan
+  // Jika simulateVehicleMovement berubah, restart/stop simulasi
   useEffect(() => {
     if (
       simulateVehicleMovement &&
@@ -270,11 +262,13 @@ export function useRealTimeAlerts({
     stopSimulation,
   ]);
 
-  // Tandai sebuah alert sebagai acknowledged
+  // Acknowledge sebuah alert (menandai sudah dibaca)
   const acknowledgeAlert = useCallback((alertId: string) => {
     setAlerts((prev) =>
       prev.map((alert) =>
-        alert.id === alertId ? { ...alert, acknowledged: true } : alert
+        alert.id === alertId
+          ? { ...alert, acknowledged: true }
+          : alert
       )
     );
   }, []);
@@ -284,12 +278,12 @@ export function useRealTimeAlerts({
     setAlerts([]);
   }, []);
 
-  // Filter alert yang belum di‐acknowledge
+  // Filter alert yang belum di-acknowledge
   const unacknowledgedAlerts = alerts.filter(
     (alert) => !alert.acknowledged
   );
 
-  // Dapatkan alert berdasarkan severity
+  // Ambil alert berdasarkan severity
   const getAlertsBySeverity = useCallback(
     (severity: "low" | "medium" | "high" | "critical") => {
       return alerts.filter((alert) => {
@@ -300,7 +294,7 @@ export function useRealTimeAlerts({
           eventType === "violation_enter" ||
           eventType === "violation_exit"
         ) {
-          // FORBIDDEN → critical, selainnya → high
+          // Jika rule FORBIDDEN → critical, selainnya → high
           return ruleType === "FORBIDDEN"
             ? severity === "critical"
             : severity === "high";
@@ -314,6 +308,16 @@ export function useRealTimeAlerts({
     [alerts]
   );
 
+  // Dapatkan status dan fungsi retry dari API detector
+  const apiStatus = detectorRef.current
+    ? detectorRef.current.getApiStatus()
+    : { healthy: false, lastChecked: null };
+  const retryFailedApiCalls = detectorRef.current
+    ? detectorRef.current.retryFailedApiCalls.bind(
+        detectorRef.current
+      )
+    : () => Promise.resolve();
+
   return {
     alerts,
     unacknowledgedAlerts,
@@ -325,5 +329,7 @@ export function useRealTimeAlerts({
     getAlertsBySeverity,
     startSimulation,
     stopSimulation,
+    apiStatus,
+    retryFailedApiCalls,
   };
 }
