@@ -25,8 +25,9 @@ import useSWR from 'swr';
 
 import {
     useProjectGeofenceDetection,
-    setVehiclesDetailForDetection,
+    setVehiclesDetailForDetection, // Assuming this function is correctly imported
     saveGeofenceEventToApi,
+    // GeofenceEvent as DetectorGeofenceEvent, // Not used
     ProjectCoordinate
 } from '@/lib/geofenceDetector'; // Pastikan path ini benar
 import { saveAlert } from '@/lib/alertService'; // Pastikan path ini benar
@@ -56,7 +57,7 @@ interface ProjectGeofence {
   date_created: string;
 }
 
-interface Vehicle {
+interface Vehicle { // This is the type expected by setVehiclesDetailForDetection based on the error
   vehicle_id: string;
   user_id: string;
   gps_id: string | null;
@@ -70,7 +71,7 @@ interface Vehicle {
   created_at: string;
   updated_at: string | null;
   vehicle_photo: string | null;
-  geofence_id?: number | string | null;
+  geofence_id?: number | string | null; // This property is part of Vehicle
 }
 
 interface VehicleData {
@@ -227,7 +228,10 @@ export function LiveTracking() {
   const validateGeofenceCoordinates = useCallback((geofence: ProjectGeofence | null | undefined): geofence is ProjectGeofence => {
     if (!geofence) return false;
     try {
-      if (!geofence.definition) return false;
+      if (!geofence.definition) {
+        console.warn('Validasi: Geofence tidak memiliki definisi.', geofence.name);
+        return false;
+      }
       if (geofence.type === 'circle') {
         if (!geofence.definition.center || geofence.definition.center.length < 2) return false;
         const [lng, lat] = geofence.definition.center;
@@ -407,31 +411,31 @@ export function LiveTracking() {
       setSelectedVehicleCoords(null);
     }
     if (vehicle.geofence_id) {
+        // SWR akan menangani fetch dan update selectedGeofenceDetailSWR,
+        // yang kemudian akan mengupdate assignedGeofenceForDisplay via onSuccess
+        // Jika geofence sudah ada di cache lokal 'geofences', bisa set langsung untuk responsivitas UI
         const cachedGeofence = geofences.find(gf => gf.geofence_id.toString() === vehicle.geofence_id?.toString());
         if (cachedGeofence && validateGeofenceCoordinates(cachedGeofence)) {
             setAssignedGeofenceForDisplay(cachedGeofence);
         } else if (selectedGeofenceDetailSWR && selectedGeofenceDetailSWR.geofence_id.toString() === vehicle.geofence_id.toString() && validateGeofenceCoordinates(selectedGeofenceDetailSWR)) {
+            // Jika SWR sudah punya data yang cocok
             setAssignedGeofenceForDisplay(selectedGeofenceDetailSWR);
-        } else {
-          setAssignedGeofenceForDisplay(null);
         }
+        // Biarkan SWR untuk fetch jika tidak ada di cache atau SWR belum selesai
     } else {
         setAssignedGeofenceForDisplay(null);
     }
   }, [geofences, validateGeofenceCoordinates, selectedGeofenceDetailSWR]);
 
 
+  // PERBAIKAN DI SINI
   useEffect(() => {
     if (vehicles && vehicles.length > 0) {
-      const vehiclesForDetection = vehicles
-        .filter(v => v.gps_id !== null)
-        .map(v_filtered => ({
-          ...v_filtered,
-          gps_id: v_filtered.gps_id as string,
-        }));
-      setVehiclesDetailForDetection(vehiclesForDetection as any); // Cast to any if type still mismatches, ideally fix type in detector
+      // Jika setVehiclesDetailForDetection mengharapkan Vehicle[], dan 'vehicles' sudah Vehicle[],
+      // maka bisa langsung dipass.
+      setVehiclesDetailForDetection(vehicles);
     }
-  }, [vehicles, setVehiclesDetailForDetection]);
+  }, [vehicles, setVehiclesDetailForDetection]); // Pastikan setVehiclesDetailForDetection stabil atau ada di dependency array jika dari custom hook
 
 
   useEffect(() => {
@@ -491,7 +495,7 @@ export function LiveTracking() {
       }
     };
     processGeofenceEvents();
-  }, [processedVehicles, detectVehicleEvents, saveGeofenceEventToApi, saveAlert]);
+  }, [processedVehicles, detectVehicleEvents, saveGeofenceEventToApi, saveAlert]); // Tambahkan dependensi yang relevan
 
   useEffect(() => {
     if (processedVehicles.length > 0 && !selectedVehicleId) {
@@ -527,7 +531,7 @@ export function LiveTracking() {
   };
 
   const handleMapClick = () => {
-    // setSelectedVehicleId(null);
+    // setSelectedVehicleId(null); // Optional: deselect vehicle on map click
   };
 
   const handleRefresh = () => {
@@ -566,7 +570,7 @@ export function LiveTracking() {
 
   const isLoadingInitial = vehiclesLoading && processedVehicles.length === 0;
   const isRefreshing = !isLoadingInitial && (vehiclesLoading || vehicleDataLoading || geofencesLoading);
-  const hasError = !!(vehiclesError || vehicleDataError || geofencesError);
+  const hasError = !!(vehiclesError || vehicleDataError || geofencesError); // Pastikan boolean
 
 
   if (isLoadingInitial && !hasError) {
@@ -675,11 +679,8 @@ export function LiveTracking() {
                         {selectedVehicleId === vehicle.vehicle_id && (
                           <Eye className="w-3.5 h-3.5 text-blue-700 shrink-0" />
                         )}
-                        {/* PERBAIKAN DI SINI */}
                         {vehicle.geofence_id && (
-                          <span title="Memiliki geofence ter-assign">
-                            <Shield className="w-3.5 h-3.5 text-green-600 shrink-0" />
-                          </span>
+                          <Shield className="w-3.5 h-3.5 text-green-600 shrink-0" title="Memiliki geofence ter-assign" />
                         )}
                       </div>
                       <Badge className={`text-xs px-1.5 py-0.5 font-medium ${getStatusColorClass(vehicle.isOnline ? vehicle.status : 'offline')}`}>

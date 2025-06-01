@@ -296,7 +296,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
         zoom={initialZoom}
         style={{ height: '100%', width: '100%' }}
         className="rounded-lg"
-        ref={mapRef}
+        ref={mapRef} // PERBAIKAN DI SINI: Menggunakan prop ref
       >
         <TileLayer
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
@@ -306,8 +306,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
         {shouldAutoFit ? (
           <AutoFitBounds routePolyline={routePolyline} vehicles={vehicles} />
         ) : (
-          // PERBAIKAN DI SINI
-          <ReactiveMapView center={centerCoordinates ?? null} zoom={zoomLevel || initialZoom} />
+          <ReactiveMapView center={centerCoordinates} zoom={zoomLevel || initialZoom} />
         )}
 
         <MapEvents onClick={handleMapGeneralClick} />

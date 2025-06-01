@@ -3,7 +3,8 @@
 import { useState, useEffect, useMemo } from "react";
 import dynamic from "next/dynamic";
 import type { Layer } from 'leaflet';
-import type { Circle, Polygon, LatLng } from 'leaflet';
+// Jika Anda akan menggunakan tipe spesifik Leaflet, impor mereka:
+import type { Circle, Polygon, LatLng } from 'leaflet'; // Contoh
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -30,10 +31,10 @@ export interface Geofence {
   rule_type: "STANDARD" | "FORBIDDEN" | "STAY_IN";
   status: "active" | "inactive";
   definition: {
-    coordinates?: number[][][];
-    center?: number[];
-    radius?: number;
-    type: string;
+    coordinates?: number[][][]; // Untuk polygon: [[[lng, lat], [lng, lat], ...]]
+    center?: number[];          // Untuk lingkaran: [lng, lat]
+    radius?: number;            // Untuk lingkaran: meter
+    type: string;               // "Polygon" atau "Circle" dari GeoJSON
   };
   date_created: string;
 }
@@ -41,7 +42,7 @@ export interface Geofence {
 export interface Vehicle {
   vehicle_id: string;
   user_id: string;
-  gps_id: string;
+  gps_id: string; // Tambahkan gps_id jika ada di data Anda
   name: string;
   license_plate: string;
   make: string;
@@ -51,11 +52,12 @@ export interface Vehicle {
 }
 
 // Constants
-const DEFAULT_CENTER: [number, number] = [-2.5, 118.0];
+const DEFAULT_CENTER: [number, number] = [-2.5, 118.0]; // [lat, lng]
 const API_ENDPOINT = 'http://ec2-13-229-83-7.ap-southeast-1.compute.amazonaws.com:8055/items/geofence';
 const VEHICLE_API_ENDPOINT = 'http://ec2-13-229-83-7.ap-southeast-1.compute.amazonaws.com:8055/items/vehicle';
 
 export function GeofenceManager() {
+  // Core state
   const [searchTerm, setSearchTerm] = useState("");
   const [currentGeofence, setCurrentGeofence] = useState<Geofence | null>(null);
   const [geofences, setGeofences] = useState<Geofence[]>([]);
@@ -63,30 +65,35 @@ export function GeofenceManager() {
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
+  // Creation state
   const [isCreating, setIsCreating] = useState(false);
   const [newGeofence, setNewGeofence] = useState({
     name: "",
-    ruleType: "FORBIDDEN" as "STANDARD" | "FORBIDDEN" | "STAY_IN",
+    ruleType: "FORBIDDEN",
     type: "polygon" as "polygon" | "circle"
   });
-  const [drawnLayers, setDrawnLayers] = useState<Layer[]>([]);
+  const [drawnLayers, setDrawnLayers] = useState<Layer[]>([]); // Tipe Layer dari leaflet
 
+  // Dialog state
   const [assignDialogOpen, setAssignDialogOpen] = useState(false);
   const [selectedVehicles, setSelectedVehicles] = useState<string[]>([]);
 
+  // Helper functions
   const validateGeofence = (geofence: Geofence): boolean => {
     if (!geofence.definition) return false;
+
     if (geofence.type === 'circle') {
       return !!(geofence.definition.center &&
-        geofence.definition.center.length === 2 &&
+        geofence.definition.center.length === 2 && // [lng, lat]
         typeof geofence.definition.radius === 'number' && geofence.definition.radius > 0);
     }
+
     if (geofence.type === 'polygon') {
       return !!(geofence.definition.coordinates &&
         Array.isArray(geofence.definition.coordinates) &&
         geofence.definition.coordinates.length > 0 &&
         Array.isArray(geofence.definition.coordinates[0]) &&
-        geofence.definition.coordinates[0].length >= 4 &&
+        geofence.definition.coordinates[0].length >= 4 && // Minimal 3 titik + titik penutup
         geofence.definition.coordinates[0].every(coordPair =>
           Array.isArray(coordPair) && coordPair.length === 2 &&
           typeof coordPair[0] === 'number' && typeof coordPair[1] === 'number'
@@ -98,18 +105,23 @@ export function GeofenceManager() {
 
   const getGeofenceCenter = (geofence: Geofence | null): [number, number] => {
     if (!geofence || !validateGeofence(geofence)) return DEFAULT_CENTER;
+
     if (geofence.type === 'circle' && geofence.definition.center) {
+      // Definition center is [lng, lat], map center is [lat, lng]
       return [geofence.definition.center[1], geofence.definition.center[0]];
     }
+
     if (geofence.type === 'polygon' && geofence.definition.coordinates?.[0]) {
-      const coords = geofence.definition.coordinates[0];
+      const coords = geofence.definition.coordinates[0]; // array of [lng, lat]
       if (coords.length === 0) return DEFAULT_CENTER;
       const sumLat = coords.reduce((sum, coord) => sum + coord[1], 0);
       const sumLng = coords.reduce((sum, coord) => sum + coord[0], 0);
       return [sumLat / coords.length, sumLng / coords.length];
     }
+
     return DEFAULT_CENTER;
   };
+
 
   const getStatusColor = (status: string) =>
     status === 'active' ? 'bg-emerald-100 text-emerald-800 border-emerald-200' : 'bg-slate-100 text-slate-700 border-slate-200';
@@ -132,31 +144,36 @@ export function GeofenceManager() {
     return formats[ruleType] || ruleType;
   };
 
+  // API functions
   const fetchGeofences = async (userId: string) => {
     setLoading(true);
     try {
       const response = await fetch(`${API_ENDPOINT}?filter[user_id][_eq]=${userId}&limit=-1`);
       if (!response.ok) throw new Error('Failed to fetch geofences');
+
       const result = await response.json();
       const fetchedGeofences = result.data || [];
+      
+      // Pastikan geofence.definition di-parse jika berbentuk string JSON
       const parsedGeofences = fetchedGeofences.map((gf: any) => {
         if (typeof gf.definition === 'string') {
           try {
             return { ...gf, definition: JSON.parse(gf.definition) };
           } catch (e) {
             console.error(`Failed to parse definition for geofence ${gf.geofence_id}:`, gf.definition, e);
-            return { ...gf, definition: {} };
+            return { ...gf, definition: {} }; // atau null, atau filter keluar
           }
         }
         return gf;
       });
+
       const validGeofences = parsedGeofences.filter(validateGeofence);
       setGeofences(validGeofences);
       return validGeofences;
     } catch (error) {
       console.error('Error fetching geofences:', error);
       toast.error("Gagal memuat data geofence");
-      setGeofences([]);
+      setGeofences([]); // Set ke array kosong jika gagal
       return [];
     } finally {
       setLoading(false);
@@ -165,16 +182,39 @@ export function GeofenceManager() {
 
   const removeGeofenceFromVehicles = async (geofenceId: number) => {
     try {
+      console.log(`🔄 Removing geofence ${geofenceId} from all assigned vehicles...`);
+
       const assignedVehicles = vehicles.filter(v =>
         v.geofence_id && (
           v.geofence_id.toString() === geofenceId.toString() ||
           parseInt(v.geofence_id.toString(), 10) === geofenceId
         )
       );
-      if (assignedVehicles.length === 0) return true;
-      const unassignPromises = assignedVehicles.map(vehicle => updateVehicleGeofence(vehicle.vehicle_id, null));
+
+      console.log(`📋 Found ${assignedVehicles.length} vehicles assigned to geofence ${geofenceId}:`,
+        assignedVehicles.map(v => `${v.name} (ID: ${v.vehicle_id})`));
+
+      if (assignedVehicles.length === 0) {
+        console.log('ℹ️ No vehicles assigned to this geofence');
+        return true;
+      }
+
+      const unassignPromises = assignedVehicles.map(async (vehicle) => {
+        console.log(`🔄 Removing geofence from vehicle: ${vehicle.name} (ID: ${vehicle.vehicle_id})`);
+        const success = await updateVehicleGeofence(vehicle.vehicle_id, null);
+        if (success) {
+          console.log(`✅ Successfully removed geofence from ${vehicle.name}`);
+        } else {
+          console.error(`❌ Failed to remove geofence from ${vehicle.name}`);
+        }
+        return success;
+      });
+
       const results = await Promise.all(unassignPromises);
       const successCount = results.filter(Boolean).length;
+
+      console.log(`📊 Removed geofence from ${successCount}/${assignedVehicles.length} vehicles`);
+
       if (successCount === assignedVehicles.length) {
         toast.success(`Berhasil menghapus assignment dari ${successCount} kendaraan`);
         return true;
@@ -183,7 +223,7 @@ export function GeofenceManager() {
         return false;
       }
     } catch (error) {
-      console.error('Error removing geofence from vehicles:', error);
+      console.error('❌ Error removing geofence from vehicles:', error);
       toast.error('Gagal menghapus assignment kendaraan');
       return false;
     }
@@ -193,20 +233,27 @@ export function GeofenceManager() {
     const assignedVehicles = vehicles.filter(v =>
       v.geofence_id && v.geofence_id.toString() === geofence.geofence_id.toString()
     );
+
     if (assignedVehicles.length === 0) {
       toast.info('Tidak ada kendaraan yang ter-assign ke geofence ini');
       return;
     }
+
     const vehicleNames = assignedVehicles.map(v => v.name).join(', ');
+
     if (!confirm(`Apakah Anda yakin ingin menghapus semua assignment kendaraan dari geofence "${geofence.name}"?\n\nKendaraan yang akan di-unassign: ${vehicleNames}`)) {
       return;
     }
+
     setLoading(true);
     try {
       const success = await removeGeofenceFromVehicles(geofence.geofence_id);
+
       if (success) {
         const userId = currentUser?.id || currentUser?.user_id;
-        if (userId) await fetchVehicles(userId);
+        if (userId) {
+          await fetchVehicles(userId);
+        }
         toast.success(`Berhasil menghapus semua assignment dari geofence "${geofence.name}"`);
       }
     } catch (error) {
@@ -221,6 +268,7 @@ export function GeofenceManager() {
     try {
       const response = await fetch(`${VEHICLE_API_ENDPOINT}?filter[user_id][_eq]=${userId}&limit=-1`);
       if (!response.ok) throw new Error('Failed to fetch vehicles');
+
       const result = await response.json();
       setVehicles(result.data || []);
     } catch (error) {
@@ -234,20 +282,24 @@ export function GeofenceManager() {
       const response = await fetch(`${VEHICLE_API_ENDPOINT}/${vehicleId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ geofence_id: geofenceId === null ? null : Number(geofenceId) })
+        body: JSON.stringify({ geofence_id: geofenceId === null ? null : Number(geofenceId) }) // Kirim sebagai angka atau null
       });
+
       if (!response.ok) {
         const errorData = await response.json();
         console.error(`Failed to update vehicle ${vehicleId}:`, errorData);
         throw new Error(`Failed to update vehicle: ${response.status}`);
       }
+
+      console.log(`✅ Vehicle ${vehicleId} geofence updated to ${geofenceId}`);
       return true;
     } catch (error) {
-      console.error(`Error updating vehicle ${vehicleId}:`, error);
+      console.error(`❌ Error updating vehicle ${vehicleId}:`, error);
       return false;
     }
   };
 
+  // Load user and data on mount
   useEffect(() => {
     const loadUserAndData = async () => {
       setLoading(true);
@@ -258,31 +310,42 @@ export function GeofenceManager() {
           setCurrentUser(user);
           const userId = user.id || user.user_id;
           if (userId) {
-            await Promise.all([fetchGeofences(userId), fetchVehicles(userId)]);
+            await Promise.all([
+              fetchGeofences(userId),
+              fetchVehicles(userId)
+            ]);
           } else {
             toast.error("User ID tidak ditemukan. Gagal memuat data.");
-            setLoading(false);
+            setLoading(false); // Hentikan loading jika user ID tidak ada
           }
         } else {
-          toast.error("Sesi pengguna tidak ditemukan. Harap login ulang.");
-          setLoading(false);
+           toast.error("Sesi pengguna tidak ditemukan. Harap login ulang.");
+           setLoading(false); // Hentikan loading jika user tidak ada
         }
       } catch (error) {
         console.error('Error loading user and initial data:', error);
         toast.error("Terjadi kesalahan saat memuat data awal.");
-        setLoading(false);
+      } finally {
+        // setLoading(false); // Sudah dihandle di dalam fetchGeofences atau jika ada error
       }
     };
+
     loadUserAndData();
   }, []);
 
+
+  // Auto-select first geofence if none is selected and not creating
   useEffect(() => {
     if (!loading && geofences.length > 0 && !currentGeofence && !isCreating) {
       const firstValid = geofences.find(validateGeofence);
-      if (firstValid) setCurrentGeofence(firstValid);
+      if (firstValid) {
+        setCurrentGeofence(firstValid);
+      }
     }
   }, [geofences, currentGeofence, isCreating, loading]);
 
+
+  // Event handlers
   const handleStartCreating = () => {
     setIsCreating(true);
     setCurrentGeofence(null);
@@ -293,6 +356,7 @@ export function GeofenceManager() {
   const handleCancelCreating = () => {
     setIsCreating(false);
     setDrawnLayers([]);
+    // Kembalikan ke geofence pertama yang valid jika ada, atau null jika tidak ada
     if (validGeofences.length > 0) {
       setCurrentGeofence(validGeofences[0]);
     } else {
@@ -300,42 +364,55 @@ export function GeofenceManager() {
     }
   };
 
-  const handleDrawCreated = (e: { layerType: string; layer: Layer }) => {
-    setDrawnLayers([e.layer]);
+  const handleDrawCreated = (e: { layerType: string; layer: Layer }) => { // Gunakan Layer dari leaflet
+    setDrawnLayers([e.layer]); // Hanya layer terakhir yang digambar yang disimpan
     setNewGeofence(prev => ({
       ...prev,
       type: e.layerType === 'circle' ? 'circle' : 'polygon'
     }));
   };
 
+
   const handleSaveGeofence = async () => {
     if (!currentUser || !newGeofence.name.trim() || drawnLayers.length === 0) {
       toast.error("Mohon lengkapi semua field dan gambar area geofence");
       return;
     }
+
     setLoading(true);
     try {
-      const layer = drawnLayers[0];
+      const layer = drawnLayers[0]; // Ambil layer yang sudah digambar
       const userId = currentUser.id || currentUser.user_id;
-      let definitionData;
+
+      let definitionData; // Ini akan menjadi objek GeoJSON-like untuk 'definition'
       let geofenceTypeForPayload: "circle" | "polygon" = newGeofence.type;
 
-      if (typeof (layer as any).getRadius === 'function') {
-        const circleLayer = layer as Circle;
-        const center = circleLayer.getLatLng();
-        const radius = circleLayer.getRadius();
-        definitionData = { type: "Circle", center: [center.lng, center.lat], radius: radius };
+      // PERBAIKAN DI SINI untuk getRadius dan getLatLngs
+      if (typeof (layer as any).getRadius === 'function') { // Ini adalah Circle
+        const circleLayer = layer as Circle; // Type assertion ke Circle dari leaflet
+        const center = circleLayer.getLatLng(); // L.LatLng
+        const radius = circleLayer.getRadius(); // number (meters)
+        definitionData = {
+          type: "Circle", // Sesuai GeoJSON
+          center: [center.lng, center.lat], // [lng, lat]
+          radius: radius
+        };
         geofenceTypeForPayload = "circle";
-      } else if (typeof (layer as any).getLatLngs === 'function') {
-        const polygonLayer = layer as Polygon;
+      } else if (typeof (layer as any).getLatLngs === 'function') { // Ini adalah Polygon
+        const polygonLayer = layer as Polygon; // Type assertion ke Polygon dari leaflet
+        // getLatLngs() bisa mengembalikan LatLng[] | LatLng[][] | LatLng[][][]
+        // Untuk poligon sederhana, biasanya LatLng[][] (untuk outer dan holes) atau LatLng[] (jika hanya outer ring)
+        // Asumsikan layer.getLatLngs()[0] adalah outer ring
         const latlngsArray = polygonLayer.getLatLngs();
-        
-        let outerRing: LatLng[];
+        let
+ Ring: LatLng[];
 
         if (Array.isArray(latlngsArray) && latlngsArray.length > 0) {
           if (Array.isArray(latlngsArray[0]) && (latlngsArray[0] as LatLng[])[0] instanceof Object && 'lat' in (latlngsArray[0] as LatLng[])[0]) {
+            // Ini adalah LatLng[][] (misalnya, dari poligon dengan lubang, ambil ring terluar)
             outerRing = latlngsArray[0] as LatLng[];
           } else if (latlngsArray[0] instanceof Object && 'lat' in latlngsArray[0]) {
+            // Ini adalah LatLng[]
             outerRing = latlngsArray as LatLng[];
           } else {
             toast.error("Format koordinat poligon tidak dikenali.");
@@ -348,11 +425,14 @@ export function GeofenceManager() {
           return;
         }
         
-        const coordinates = outerRing.map(ll => [ll.lng, ll.lat]);
+        const coordinates = outerRing.map(ll => [ll.lng, ll.lat]); // [[lng, lat], ...]
         if (coordinates.length > 0 && (coordinates[0][0] !== coordinates[coordinates.length - 1][0] || coordinates[0][1] !== coordinates[coordinates.length - 1][1])) {
-          coordinates.push([...coordinates[0]]);
+            coordinates.push([...coordinates[0]]); // Tutup poligon jika belum tertutup
         }
-        definitionData = { type: "Polygon", coordinates: [coordinates] };
+        definitionData = {
+          type: "Polygon", // Sesuai GeoJSON
+          coordinates: [coordinates] // [[[lng, lat], [lng, lat], ...]]
+        };
         geofenceTypeForPayload = "polygon";
       } else {
         toast.error("Tipe layer tidak dikenali untuk disimpan.");
@@ -363,35 +443,40 @@ export function GeofenceManager() {
       const payload = {
         user_id: userId,
         name: newGeofence.name,
-        type: geofenceTypeForPayload,
+        type: geofenceTypeForPayload, // type: "circle" | "polygon"
         rule_type: newGeofence.ruleType,
         status: "active",
-        definition: definitionData,
+        definition: definitionData, // Objek JSON, bukan string
         date_created: new Date().toISOString()
       };
+      
+      console.log("Payload to save:", JSON.stringify(payload, null, 2));
+
+
       const response = await fetch(API_ENDPOINT, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
+        body: JSON.stringify(payload) // Kirim objek definition langsung
       });
 
       if (response.ok) {
         toast.success("Geofence berhasil disimpan");
         setIsCreating(false);
         setDrawnLayers([]);
-        const fetchedGeofencesList = await fetchGeofences(userId);
-        const savedGeofenceResponse = await response.json();
-        const newGeo = savedGeofenceResponse.data;
-
-        if (newGeo && validateGeofence(newGeo)) {
-            setCurrentGeofence(newGeo);
-        } else if (fetchedGeofencesList && fetchedGeofencesList.length > 0) {
-            setCurrentGeofence(fetchedGeofencesList[0]);
-        } else {
-            setCurrentGeofence(null);
+        await fetchGeofences(userId); // Muat ulang daftar geofence
+         if (validGeofences.length > 0) { // Select the newly created or first geofence
+            const savedGeofence = await response.json();
+            const newGeo = savedGeofence.data;
+             if (newGeo && validateGeofence(newGeo)) {
+                setCurrentGeofence(newGeo);
+            } else if (validGeofences.length > 0) {
+                 setCurrentGeofence(validGeofences[0]);
+             }
         }
+
       } else {
         const errorData = await response.json();
+        console.error('Failed to save geofence:', errorData);
         toast.error(`Gagal menyimpan geofence: ${errorData.errors?.[0]?.message || response.statusText}`);
       }
     } catch (error) {
@@ -402,24 +487,37 @@ export function GeofenceManager() {
     }
   };
 
+
   const handleDeleteGeofence = async (geofenceId: number) => {
     if (!confirm("Apakah Anda yakin ingin menghapus geofence ini? Semua assignment kendaraan dari geofence ini akan dihapus.")) return;
+
     setLoading(true);
     try {
+      // First remove geofence assignment from all vehicles
       await removeGeofenceFromVehicles(geofenceId);
+
+      // Then delete the geofence
       const response = await fetch(`${API_ENDPOINT}/${geofenceId}`, { method: 'DELETE' });
+
       if (response.ok) {
         toast.success("Geofence berhasil dihapus");
         const userId = currentUser?.id || currentUser?.user_id;
         if (userId) {
-          const updatedGeofences = await fetchGeofences(userId);
-          await fetchVehicles(userId);
-          if (currentGeofence?.geofence_id === geofenceId) {
-            setCurrentGeofence(updatedGeofences && updatedGeofences.length > 0 ? updatedGeofences[0] : null);
+          await fetchGeofences(userId); // Muat ulang geofence
+          await fetchVehicles(userId);  // Muat ulang kendaraan
+        }
+        if (currentGeofence?.geofence_id === geofenceId) {
+          // Jika geofence yang dihapus adalah yang sedang aktif, pilih geofence lain atau null
+          const remainingGeofences = geofences.filter(gf => gf.geofence_id !== geofenceId);
+          if (remainingGeofences.length > 0) {
+            setCurrentGeofence(remainingGeofences[0]);
+          } else {
+            setCurrentGeofence(null);
           }
         }
       } else {
-        const errorData = await response.json();
+         const errorData = await response.json();
+        console.error('Failed to delete geofence:', errorData);
         toast.error(`Gagal menghapus geofence: ${errorData.errors?.[0]?.message || response.statusText}`);
       }
     } catch (error) {
@@ -444,6 +542,7 @@ export function GeofenceManager() {
 
   const saveVehicleAssignments = async () => {
     if (!currentGeofence) return;
+
     setLoading(true);
     try {
       const geofenceIdNum = currentGeofence.geofence_id;
@@ -453,25 +552,40 @@ export function GeofenceManager() {
           parseInt(v.geofence_id.toString(), 10) === geofenceIdNum
         ))
         .map(v => v.vehicle_id.toString());
+
       const toAdd = selectedVehicles.filter(id => !currentlyAssigned.includes(id));
       const toRemove = currentlyAssigned.filter(id => !selectedVehicles.includes(id));
+
+      console.log('🔄 Vehicle assignment changes:', {
+        geofenceId: geofenceIdNum,
+        currentlyAssigned,
+        selectedVehicles,
+        toAdd,
+        toRemove
+      });
+
       const promises = [
         ...toAdd.map(id => updateVehicleGeofence(id, geofenceIdNum)),
         ...toRemove.map(id => updateVehicleGeofence(id, null))
       ];
+
       const results = await Promise.all(promises);
+
       if (results.every(Boolean)) {
         toast.success('Assignment kendaraan berhasil diperbarui');
         const userId = currentUser?.id || currentUser?.user_id;
-        if (userId) await fetchVehicles(userId);
+        if (userId) await fetchVehicles(userId); // Muat ulang data kendaraan
         setAssignDialogOpen(false);
+        console.log('✅ All vehicle assignments updated successfully');
       } else {
         toast.error('Gagal memperbarui beberapa assignment kendaraan');
+        console.error('❌ Some vehicle assignments failed to update');
+         // Muat ulang data kendaraan untuk sinkronisasi parsial
         const userId = currentUser?.id || currentUser?.user_id;
         if (userId) await fetchVehicles(userId);
       }
     } catch (error) {
-      console.error('Error updating assignments:', error);
+      console.error('❌ Error updating assignments:', error);
       toast.error('Gagal memperbarui assignment kendaraan');
     } finally {
       setLoading(false);
@@ -480,26 +594,34 @@ export function GeofenceManager() {
 
   const handleRemoveVehicleAssignment = async (vehicleId: string | number, vehicleName: string) => {
     if (!confirm(`Apakah Anda yakin ingin melepas assignment kendaraan "${vehicleName}" dari geofence ini?`)) return;
+
     setLoading(true);
     try {
+      console.log(`🔄 Removing assignment for vehicle: ${vehicleName} (ID: ${vehicleId})`);
       const success = await updateVehicleGeofence(vehicleId, null);
+
       if (success) {
         toast.success(`Assignment kendaraan "${vehicleName}" berhasil dihapus`);
         const userId = currentUser?.id || currentUser?.user_id;
-        if (userId) await fetchVehicles(userId);
+        if (userId) {
+          await fetchVehicles(userId); // Muat ulang data kendaraan
+        }
         setSelectedVehicles(prev => prev.filter(id => id !== vehicleId.toString()));
+        console.log(`✅ Successfully removed assignment for ${vehicleName}`);
       } else {
         toast.error(`Gagal menghapus assignment kendaraan "${vehicleName}"`);
+        console.error(`❌ Failed to remove assignment for ${vehicleName}`);
       }
     } catch (error) {
-      console.error('Error removing vehicle assignment:', error);
+      console.error('❌ Error removing vehicle assignment:', error);
       toast.error('Gagal menghapus assignment kendaraan');
     } finally {
       setLoading(false);
     }
   };
 
-  const filteredGeofences = useMemo(() =>
+  // Computed values
+  const filteredGeofences = useMemo(() => 
     geofences.filter(g =>
       g.name.toLowerCase().includes(searchTerm.toLowerCase()) && validateGeofence(g)
     ), [geofences, searchTerm]
@@ -518,7 +640,8 @@ export function GeofenceManager() {
     ).length;
   };
 
-  if (loading && !currentUser && geofences.length === 0) {
+
+  if (loading && !currentUser && geofences.length === 0) { // Kondisi loading awal yang lebih baik
     return (
       <div className="flex items-center justify-center min-h-screen bg-slate-50">
         <div className="text-center">
@@ -531,6 +654,7 @@ export function GeofenceManager() {
 
   return (
     <div className="p-4 md:p-6 max-w-full mx-auto bg-gradient-to-br from-slate-50 to-blue-50 min-h-screen">
+      {/* Header */}
       <div className="flex flex-col sm:flex-row items-center justify-between mb-6 pb-4 border-b border-slate-200/60">
         <div className="flex items-center gap-3 mb-4 sm:mb-0">
           <div className="p-2 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl shadow-lg">
@@ -543,6 +667,7 @@ export function GeofenceManager() {
             <p className="text-slate-600 text-sm sm:text-base">Kelola area geografis untuk monitoring kendaraan</p>
           </div>
         </div>
+
         {!isCreating && (
           <Button
             onClick={handleStartCreating}
@@ -554,8 +679,11 @@ export function GeofenceManager() {
         )}
       </div>
 
+      {/* Main Content */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6" style={{ minHeight: 'calc(100vh - 200px)' }}>
+        {/* Sidebar */}
         <div className="lg:col-span-1 flex flex-col bg-white/80 backdrop-blur-sm p-4 rounded-2xl shadow-xl border border-white/20">
+          {/* Search */}
           {!isCreating && (
             <div className="mb-4">
               <div className="relative">
@@ -569,6 +697,8 @@ export function GeofenceManager() {
               </div>
             </div>
           )}
+
+          {/* Create Form */}
           {isCreating && (
             <Card className="mb-4 border-blue-200 bg-gradient-to-br from-blue-50 to-indigo-50 shadow-lg">
               <CardHeader className="bg-gradient-to-r from-blue-500 to-indigo-600 text-white py-3 rounded-t-lg">
@@ -581,6 +711,7 @@ export function GeofenceManager() {
                   onChange={(e) => setNewGeofence({ ...newGeofence, name: e.target.value })}
                   className="border-blue-200 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400"
                 />
+
                 <Select
                   value={newGeofence.ruleType}
                   onValueChange={(value) => setNewGeofence({ ...newGeofence, ruleType: value as "STANDARD" | "FORBIDDEN" | "STAY_IN" })}
@@ -594,6 +725,7 @@ export function GeofenceManager() {
                     <SelectItem value="STANDARD">📍 Standar</SelectItem>
                   </SelectContent>
                 </Select>
+
                 <div className="flex gap-2">
                   <Button
                     variant={newGeofence.type === "polygon" ? "default" : "outline"}
@@ -618,6 +750,7 @@ export function GeofenceManager() {
                     <CircleIcon className="h-4 w-4 mr-2" /> Lingkaran
                   </Button>
                 </div>
+
                 <div className="flex gap-2 pt-3 border-t border-blue-200">
                   <Button
                     onClick={handleSaveGeofence}
@@ -638,12 +771,14 @@ export function GeofenceManager() {
               </CardContent>
             </Card>
           )}
-          <div className="flex-1 overflow-auto space-y-2 pr-1">
+
+          {/* Geofence List */}
+          <div className="flex-1 overflow-auto space-y-2 pr-1"> {/* Tambah pr-1 untuk scrollbar tidak overlap */}
             {loading && geofences.length === 0 && !isCreating ? (
-              <div className="text-center py-8 text-gray-500">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto mb-3"></div>
-                <p>Memuat geofence...</p>
-              </div>
+               <div className="text-center py-8 text-gray-500">
+                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto mb-3"></div>
+                 <p>Memuat geofence...</p>
+               </div>
             ) : filteredGeofences.length === 0 && !isCreating ? (
               <Card className="border-dashed border-slate-300 bg-gradient-to-br from-slate-50 to-white shadow-sm">
                 <CardContent className="p-6 text-center">
@@ -677,10 +812,10 @@ export function GeofenceManager() {
                     }`}
                   onClick={() => {
                     if (validateGeofence(geofence)) {
-                      setIsCreating(false);
-                      setCurrentGeofence(geofence);
+                        setIsCreating(false);
+                        setCurrentGeofence(geofence);
                     } else {
-                      toast.error("Data geofence tidak valid untuk ditampilkan di peta.");
+                        toast.error("Data geofence tidak valid untuk ditampilkan di peta.");
                     }
                   }}
                 >
@@ -693,6 +828,7 @@ export function GeofenceManager() {
                         {geofence.status === 'active' ? '✅ Aktif' : '⏸️ Nonaktif'}
                       </Badge>
                     </div>
+
                     <div className="flex flex-wrap gap-2 mb-2 sm:mb-3">
                       <Badge className={`${getRuleTypeColor(geofence.rule_type)} px-2 py-1 text-xs font-medium`}>
                         {geofence.rule_type === 'FORBIDDEN' && '🚫 '}
@@ -709,12 +845,14 @@ export function GeofenceManager() {
                         </Badge>
                       )}
                     </div>
+
                     <p className="text-xs text-slate-500 mb-3 bg-slate-50 rounded px-2 py-1">
                       📅 {new Date(geofence.date_created).toLocaleDateString('id-ID', {
                         year: 'numeric', month: 'short', day: 'numeric',
                         hour: '2-digit', minute: '2-digit'
                       })}
                     </p>
+
                     <div className="flex gap-2">
                       <Button
                         variant="outline"
@@ -724,21 +862,23 @@ export function GeofenceManager() {
                       >
                         <Car className="h-4 w-4 mr-1" /> Assign
                       </Button>
+
                       {getAssignedVehiclesCount(geofence.geofence_id) > 0 && (
                         <Button
                           variant="outline"
-                          size="icon"
-                          className="text-orange-600 hover:bg-orange-50 border-orange-200 hover:border-orange-300 transition-all duration-200 p-2"
+                          size="icon" // Ubah menjadi icon untuk konsistensi
+                          className="text-orange-600 hover:bg-orange-50 border-orange-200 hover:border-orange-300 transition-all duration-200 p-2" // p-2 untuk ukuran
                           onClick={(e) => { e.stopPropagation(); handleRemoveAllAssignments(geofence); }}
                           title="Hapus semua assignment"
                         >
                           <X className="h-4 w-4" />
                         </Button>
                       )}
+
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="text-red-500 hover:bg-red-50 hover:text-red-600 transition-all duration-200 p-2"
+                        className="text-red-500 hover:bg-red-50 hover:text-red-600 transition-all duration-200 p-2" // p-2 untuk ukuran
                         onClick={(e) => { e.stopPropagation(); handleDeleteGeofence(geofence.geofence_id); }}
                         title="Hapus geofence"
                       >
@@ -752,12 +892,14 @@ export function GeofenceManager() {
           </div>
         </div>
 
+        {/* Map */}
         <div className="lg:col-span-2 border border-slate-200 rounded-2xl overflow-hidden shadow-2xl bg-white/90 backdrop-blur-sm min-h-[300px] lg:min-h-0">
           <MapWithDrawing
             center={getGeofenceCenter(isCreating ? null : currentGeofence)}
             zoom={isCreating ? 5 : (currentGeofence ? 13 : 5)}
             drawMode={isCreating ? newGeofence.type : undefined}
             onDrawCreated={isCreating ? handleDrawCreated : undefined}
+            // onDrawEdited={isCreating ? (e) => setDrawnLayers([...e.layers._layers]) : undefined}
             onDrawDeleted={isCreating ? () => setDrawnLayers([]) : undefined}
             viewOnly={!isCreating}
             geofences={isCreating ? [] : (currentGeofence && validateGeofence(currentGeofence) ? [currentGeofence] : validGeofences.filter(gf => currentGeofence ? gf.geofence_id === currentGeofence.geofence_id : true))}
@@ -768,6 +910,7 @@ export function GeofenceManager() {
         </div>
       </div>
 
+      {/* Vehicle Assignment Dialog */}
       <Dialog open={assignDialogOpen} onOpenChange={setAssignDialogOpen}>
         <DialogContent className="sm:max-w-md fixed top-[50%] sm:top-[10%] left-1/2 transform -translate-x-1/2 -translate-y-1/2 sm:translate-y-0 z-[50000] bg-white border shadow-2xl rounded-lg">
           <DialogHeader>
@@ -776,7 +919,8 @@ export function GeofenceManager() {
               Assign Kendaraan ke "{currentGeofence?.name}"
             </DialogTitle>
           </DialogHeader>
-          <div className="max-h-[60vh] sm:max-h-[300px] overflow-y-auto p-1 pr-2">
+
+          <div className="max-h-[60vh] sm:max-h-[300px] overflow-y-auto p-1 pr-2"> {/* pr-2 agar scrollbar tidak menutupi konten */}
             {vehicles.length === 0 ? (
               <div className="text-center py-8 text-gray-500">
                 <Car className="h-12 w-12 mx-auto mb-3 text-gray-300" />
@@ -788,14 +932,17 @@ export function GeofenceManager() {
                   const isChecked = selectedVehicles.includes(vehicle.vehicle_id.toString());
                   const isAssignedToThisGeofence = vehicle.geofence_id?.toString() === currentGeofence?.geofence_id.toString();
                   const isAssignedElsewhere = vehicle.geofence_id && vehicle.geofence_id.toString() !== currentGeofence?.geofence_id.toString();
+                  
                   const otherGeofence = isAssignedElsewhere ?
                     geofences.find(g => g.geofence_id.toString() === vehicle.geofence_id?.toString())
                     : null;
+
                   return (
                     <div
                       key={vehicle.vehicle_id}
-                      className={`flex items-center space-x-3 p-3 rounded-lg border transition-colors ${isChecked ? 'bg-blue-50 border-blue-400' : 'bg-gray-50 border-gray-200'
-                        } ${isAssignedElsewhere && !isChecked ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer hover:bg-blue-50'}`}
+                      className={`flex items-center space-x-3 p-3 rounded-lg border transition-colors ${
+                        isChecked ? 'bg-blue-50 border-blue-400' : 'bg-gray-50 border-gray-200'
+                      } ${isAssignedElsewhere && !isChecked ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer hover:bg-blue-50'}`}
                       onClick={() => {
                         if (isAssignedElsewhere && !isChecked) {
                           toast.error(`${vehicle.name} sudah di-assign ke geofence ${otherGeofence?.name || 'lain'}. Lepas dulu assignment tersebut untuk memilih.`);
@@ -811,9 +958,8 @@ export function GeofenceManager() {
                       <Checkbox
                         id={`vehicle-${vehicle.vehicle_id}`}
                         checked={isChecked}
-                        onCheckedChange={() => { /* Handled by div onClick */ }}
-                        // PERBAIKAN DI SINI
-                        disabled={Boolean(isAssignedElsewhere && !isChecked)}
+                        onCheckedChange={() => { /* Penanganan sudah di div onClick */ }}
+                        disabled={isAssignedElsewhere && !isChecked}
                         className={isAssignedElsewhere && !isChecked ? "cursor-not-allowed" : ""}
                       />
                       <label htmlFor={`vehicle-${vehicle.vehicle_id}`} className="flex-1 cursor-pointer">
@@ -822,38 +968,40 @@ export function GeofenceManager() {
                           {vehicle.license_plate} • {vehicle.make} {vehicle.model} ({vehicle.year})
                         </div>
                         <div className="text-xs text-gray-400 mt-0.5">
-                          Vehicle ID: {vehicle.vehicle_id} {vehicle.gps_id ? `| GPS ID: ${vehicle.gps_id}` : ''}
+                          Vehicle ID: {vehicle.vehicle_id} {vehicle.gps_id ? `| GPS ID: ${vehicle.gps_id}`: ''}
                         </div>
                         {isAssignedElsewhere && (
                           <Badge variant="outline" className="mt-1 text-xs bg-yellow-100 text-yellow-800 border-yellow-300">
                             Di geofence: {otherGeofence?.name || `ID ${vehicle.geofence_id}`}
                           </Badge>
                         )}
+                         {/* Tidak perlu badge "Sudah di-assign di sini" jika sudah dipilih dengan checkbox */}
                       </label>
-                      {isAssignedToThisGeofence && !isChecked && (
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-6 w-6 text-red-500 hover:text-red-700 hover:bg-red-50 ml-auto"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleRemoveVehicleAssignment(vehicle.vehicle_id, vehicle.name);
-                          }}
-                          title="Hapus assignment dari geofence ini"
-                        >
-                          <X className="h-3 w-3" />
-                        </Button>
-                      )}
+                      {isAssignedToThisGeofence && !isChecked && ( // Tampilkan tombol X jika sudah di-assign TAPI tidak baru saja di-check
+                         <Button
+                           variant="ghost"
+                           size="icon"
+                           className="h-6 w-6 text-red-500 hover:text-red-700 hover:bg-red-50 ml-auto"
+                           onClick={(e) => {
+                             e.stopPropagation(); // Mencegah trigger onClick pada div utama
+                             handleRemoveVehicleAssignment(vehicle.vehicle_id, vehicle.name);
+                           }}
+                           title="Hapus assignment dari geofence ini"
+                         >
+                           <X className="h-3 w-3" />
+                         </Button>
+                       )}
                     </div>
                   );
                 })}
               </div>
             )}
           </div>
+
           <DialogFooter className="mt-4 pt-4 border-t">
             <Button variant="outline" onClick={() => setAssignDialogOpen(false)}>
               Batal
-            </Button>
+            </Button>            
             <Button
               onClick={saveVehicleAssignments}
               disabled={loading}

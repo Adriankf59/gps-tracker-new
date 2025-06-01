@@ -117,7 +117,7 @@ function MapEvents({ onClick }: { onClick: () => void }) {
   return null;
 }
 
-if (typeof window !== 'undefined') {
+if (typeof window !== 'undefined') { // Perbaikan: typeof window !== 'undefined'
   delete (L.Icon.Default.prototype as any)._getIconUrl;
   L.Icon.Default.mergeOptions({
     iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png',
@@ -296,7 +296,11 @@ const MapComponent: React.FC<MapComponentProps> = ({
         zoom={initialZoom}
         style={{ height: '100%', width: '100%' }}
         className="rounded-lg"
-        ref={mapRef}
+        whenReady={(mapInstance: any) => { // Gunakan 'any' untuk mapInstance jika ada masalah tipe persisten
+          if (mapInstance) {
+            mapRef.current = mapInstance as LeafletMap;
+          }
+        }}
       >
         <TileLayer
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
@@ -306,8 +310,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
         {shouldAutoFit ? (
           <AutoFitBounds routePolyline={routePolyline} vehicles={vehicles} />
         ) : (
-          // PERBAIKAN DI SINI
-          <ReactiveMapView center={centerCoordinates ?? null} zoom={zoomLevel || initialZoom} />
+          <ReactiveMapView center={centerCoordinates} zoom={zoomLevel || initialZoom} />
         )}
 
         <MapEvents onClick={handleMapGeneralClick} />

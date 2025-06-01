@@ -27,6 +27,7 @@ import {
     useProjectGeofenceDetection,
     setVehiclesDetailForDetection,
     saveGeofenceEventToApi,
+    // GeofenceEvent as DetectorGeofenceEvent, // Tampaknya tidak digunakan, bisa di-comment jika benar
     ProjectCoordinate
 } from '@/lib/geofenceDetector'; // Pastikan path ini benar
 import { saveAlert } from '@/lib/alertService'; // Pastikan path ini benar
@@ -225,23 +226,45 @@ export function LiveTracking() {
   );
 
   const validateGeofenceCoordinates = useCallback((geofence: ProjectGeofence | null | undefined): geofence is ProjectGeofence => {
-    if (!geofence) return false;
+    if (!geofence) {
+        // console.warn('Validasi: Geofence adalah null atau undefined.');
+        return false;
+    }
     try {
-      if (!geofence.definition) return false;
-      if (geofence.type === 'circle') {
-        if (!geofence.definition.center || geofence.definition.center.length < 2) return false;
-        const [lng, lat] = geofence.definition.center;
-        if (isNaN(lng) || isNaN(lat) || !isFinite(lng) || !isFinite(lat)) return false;
-        if (geofence.definition.radius === undefined || isNaN(geofence.definition.radius) || geofence.definition.radius <= 0) return false;
-        return true;
+      if (!geofence.definition) {
+        console.warn('Validasi: Geofence tidak memiliki definisi.', geofence.name);
+        return false;
       }
-      if (geofence.type === 'polygon') {
-        if (!geofence.definition.coordinates || !geofence.definition.coordinates[0] || geofence.definition.coordinates[0].length < 3) return false;
-        for (const point of geofence.definition.coordinates[0]) {
-          if (!point || point.length < 2 || isNaN(point[0]) || isNaN(point[1]) || !isFinite(point[0]) || !isFinite(point[1])) return false;
+      if (geofence.type === 'circle') {
+        if (!geofence.definition.center || geofence.definition.center.length < 2) {
+          console.warn('Validasi: Pusat lingkaran tidak valid.', geofence.name);
+          return false;
+        }
+        const [lng, lat] = geofence.definition.center;
+        if (isNaN(lng) || isNaN(lat) || !isFinite(lng) || !isFinite(lat)) {
+          console.warn('Validasi: Koordinat pusat lingkaran tidak valid.', geofence.name);
+          return false;
+        }
+        if (geofence.definition.radius === undefined || isNaN(geofence.definition.radius) || geofence.definition.radius <= 0) {
+          console.warn('Validasi: Radius lingkaran tidak valid.', geofence.name);
+          return false;
         }
         return true;
       }
+      if (geofence.type === 'polygon') {
+        if (!geofence.definition.coordinates || !geofence.definition.coordinates[0] || geofence.definition.coordinates[0].length < 3) {
+          console.warn('Validasi: Koordinat poligon tidak cukup (minimal 3 titik).', geofence.name);
+          return false;
+        }
+        for (const point of geofence.definition.coordinates[0]) {
+          if (!point || point.length < 2 || isNaN(point[0]) || isNaN(point[1]) || !isFinite(point[0]) || !isFinite(point[1])) {
+            console.warn('Validasi: Titik koordinat poligon tidak valid.', geofence.name, point);
+            return false;
+          }
+        }
+        return true;
+      }
+      console.warn('Validasi: Tipe geofence tidak diketahui.', geofence.name, geofence.type);
       return false;
     } catch (error) {
       console.error('Error validasi koordinat geofence:', error, geofence);
@@ -250,7 +273,7 @@ export function LiveTracking() {
   }, []);
 
   const {
-    data: selectedGeofenceDetailSWR,
+    data: selectedGeofenceDetailSWR, // Ubah nama agar tidak konflik
     error: selectedGeofenceError
   } = useSWR<ProjectGeofence | null>(
     selectedVehicleId && vehicles.length > 0 ? (() => {
@@ -283,6 +306,7 @@ export function LiveTracking() {
       }
     }
   );
+
 
   const getLocationName = (latStr: string | null, lngStr: string | null): string => {
     if (!latStr || !lngStr) return 'N/A';
@@ -350,9 +374,10 @@ export function LiveTracking() {
   const processedVehicleForMap = useMemo((): ProcessedVehicleForMap[] => {
     if (!selectedVehicleId) return [];
     const selectedVehicle = processedVehicles.find(v => v.vehicle_id === selectedVehicleId);
-    if (!selectedVehicle || !selectedVehicle.latestData) return [];
+    if (!selectedVehicle || !selectedVehicle.latestData) return []; // Periksa latestData dulu
 
     const data = selectedVehicle.latestData;
+    // PERBAIKAN DI SINI
     if (data.latitude === null || data.longitude === null) {
         console.warn("Latitude atau Longitude null untuk kendaraan:", selectedVehicle.name);
         return [];
@@ -388,10 +413,12 @@ export function LiveTracking() {
     if (!assignedGeofenceForDisplay || !validateGeofenceCoordinates(assignedGeofenceForDisplay)) {
       return [];
     }
+    // console.log('Menampilkan geofence ter-assign:', assignedGeofenceForDisplay.name);
     return [assignedGeofenceForDisplay];
   }, [assignedGeofenceForDisplay, validateGeofenceCoordinates]);
 
   const handleVehicleSelect = useCallback(async (vehicle: VehicleWithTracking) => {
+    // console.log('Memilih kendaraan:', vehicle.name, 'Geofence ID:', vehicle.geofence_id);
     setSelectedVehicleId(vehicle.vehicle_id);
     setSelectedVehicleName(vehicle.name);
 
@@ -406,39 +433,39 @@ export function LiveTracking() {
     } else {
       setSelectedVehicleCoords(null);
     }
+    // Untuk assignedGeofenceForDisplay, akan diupdate oleh SWR `selectedGeofenceDetailSWR`
+    // atau jika Anda ingin update instan tanpa menunggu SWR:
     if (vehicle.geofence_id) {
-        const cachedGeofence = geofences.find(gf => gf.geofence_id.toString() === vehicle.geofence_id?.toString());
-        if (cachedGeofence && validateGeofenceCoordinates(cachedGeofence)) {
-            setAssignedGeofenceForDisplay(cachedGeofence);
-        } else if (selectedGeofenceDetailSWR && selectedGeofenceDetailSWR.geofence_id.toString() === vehicle.geofence_id.toString() && validateGeofenceCoordinates(selectedGeofenceDetailSWR)) {
-            setAssignedGeofenceForDisplay(selectedGeofenceDetailSWR);
+        const foundGeofence = geofences.find(gf => gf.geofence_id.toString() === vehicle.geofence_id?.toString());
+        if (foundGeofence && validateGeofenceCoordinates(foundGeofence)) {
+            setAssignedGeofenceForDisplay(foundGeofence);
         } else {
-          setAssignedGeofenceForDisplay(null);
+            setAssignedGeofenceForDisplay(null);
+            // Jika tidak ditemukan di cache geofences lokal, SWR akan mencoba fetch
         }
     } else {
         setAssignedGeofenceForDisplay(null);
     }
-  }, [geofences, validateGeofenceCoordinates, selectedGeofenceDetailSWR]);
+
+  }, [geofences, validateGeofenceCoordinates]);
 
 
   useEffect(() => {
     if (vehicles && vehicles.length > 0) {
-      const vehiclesForDetection = vehicles
-        .filter(v => v.gps_id !== null)
-        .map(v_filtered => ({
-          ...v_filtered,
-          gps_id: v_filtered.gps_id as string,
-        }));
-      setVehiclesDetailForDetection(vehiclesForDetection as any); // Cast to any if type still mismatches, ideally fix type in detector
+      setVehiclesDetailForDetection(vehicles.map(v => ({
+          id: v.vehicle_id,
+          name: v.name,
+          assignedGeofenceId: v.geofence_id ? Number(v.geofence_id) : undefined,
+      })));
     }
-  }, [vehicles, setVehiclesDetailForDetection]);
-
+  }, [vehicles]);
 
   useEffect(() => {
     if (geofences && geofences.length > 0) {
       const validGeofences = geofences.filter(validateGeofenceCoordinates);
       clearAllLoadedGeofencesInDetector();
       validGeofences.forEach(gf => addOrUpdateGeofence(gf));
+      // console.log(`Total ${validGeofences.length} geofence valid dimuat ke detector.`);
     }
   }, [geofences, validateGeofenceCoordinates, clearAllLoadedGeofencesInDetector, addOrUpdateGeofence]);
 
@@ -449,7 +476,8 @@ export function LiveTracking() {
         if (vehicle.latestData?.latitude && vehicle.latestData?.longitude && vehicle.latestData.timestamp) {
           const lat = parseFloat(vehicle.latestData.latitude);
           const lng = parseFloat(vehicle.latestData.longitude);
-          if (isNaN(lat) || isNaN(lng)) continue;
+
+          if (isNaN(lat) || isNaN(lng)) continue; // Lewati jika koordinat tidak valid
 
           const currentPosition: ProjectCoordinate = [lng, lat];
           const timestamp = new Date(vehicle.latestData.timestamp);
@@ -491,15 +519,17 @@ export function LiveTracking() {
       }
     };
     processGeofenceEvents();
-  }, [processedVehicles, detectVehicleEvents, saveGeofenceEventToApi, saveAlert]);
+  }, [processedVehicles, detectVehicleEvents]);
 
   useEffect(() => {
-    if (processedVehicles.length > 0 && !selectedVehicleId) {
+    if (processedVehicles.length > 0 && !selectedVehicleId) { // Hanya auto-select jika belum ada yang dipilih
       const vehicleToSelect = processedVehicles[0];
       if (vehicleToSelect) {
         handleVehicleSelect(vehicleToSelect);
       }
     }
+    // Jangan auto-deselect jika selectedVehicleId sudah ada tapi processedVehicles kosong (mis. saat refresh)
+    // Logika deselect bisa ditangani terpisah jika diperlukan
   }, [processedVehicles, selectedVehicleId, handleVehicleSelect]);
 
 
@@ -527,6 +557,7 @@ export function LiveTracking() {
   };
 
   const handleMapClick = () => {
+    // Logika jika peta diklik (misalnya, deselect vehicle)
     // setSelectedVehicleId(null);
   };
 
@@ -564,9 +595,9 @@ export function LiveTracking() {
     return Math.round(totalFuel / vehiclesWithFuel.length);
   }, [onlineVehicles]);
 
-  const isLoadingInitial = vehiclesLoading && processedVehicles.length === 0;
+  const isLoadingInitial = vehiclesLoading && processedVehicles.length === 0; // Kondisi loading awal yang lebih sederhana
   const isRefreshing = !isLoadingInitial && (vehiclesLoading || vehicleDataLoading || geofencesLoading);
-  const hasError = !!(vehiclesError || vehicleDataError || geofencesError);
+  const hasError = vehiclesError || vehicleDataError || geofencesError;
 
 
   if (isLoadingInitial && !hasError) {
@@ -675,11 +706,8 @@ export function LiveTracking() {
                         {selectedVehicleId === vehicle.vehicle_id && (
                           <Eye className="w-3.5 h-3.5 text-blue-700 shrink-0" />
                         )}
-                        {/* PERBAIKAN DI SINI */}
                         {vehicle.geofence_id && (
-                          <span title="Memiliki geofence ter-assign">
-                            <Shield className="w-3.5 h-3.5 text-green-600 shrink-0" />
-                          </span>
+                          <Shield className="w-3.5 h-3.5 text-green-600 shrink-0" title="Memiliki geofence ter-assign" />
                         )}
                       </div>
                       <Badge className={`text-xs px-1.5 py-0.5 font-medium ${getStatusColorClass(vehicle.isOnline ? vehicle.status : 'offline')}`}>

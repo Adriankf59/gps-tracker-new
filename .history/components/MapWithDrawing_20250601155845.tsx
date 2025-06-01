@@ -46,14 +46,13 @@ export default function MapWithDrawing({
   onDrawCreated,
   onDrawEdited,
   onDrawDeleted,
-  ruleType = "FORBIDDEN", // ruleType prop seems unused in this component
+  ruleType = "FORBIDDEN",
   viewOnly = false,
   geofence,
   geofences = [],
   isCreating = false,
   selectedGeofence = null,
   onMapReady,
-  // drawnLayersForEditing prop seems unused in this component currently
 }: MapWithDrawingProps) {
   const mapZoomTimerRef = useRef<NodeJS.Timeout | null>(null);
   const [isClient, setIsClient] = useState(false);
@@ -66,15 +65,18 @@ export default function MapWithDrawing({
   const validateCoordinates = (coords: any): [number, number] | null => {
       try {
           if (!coords || !Array.isArray(coords) || coords.length !== 2) {
+              // console.warn('Invalid coordinates array:', coords);
               return null;
           }
           const [lat, lng] = coords;
           const numLat = Number(lat);
           const numLng = Number(lng);
           if (isNaN(numLat) || isNaN(numLng) || !isFinite(numLat) || !isFinite(numLng)) {
+              // console.warn('Invalid coordinate values:', lat, lng);
               return null;
           }
           if (numLat < -90 || numLat > 90 || numLng < -180 || numLng > 180) {
+              // console.warn('Coordinates out of valid range:', numLat, numLng);
               return null;
           }
           return [numLat, numLng];
@@ -87,11 +89,15 @@ export default function MapWithDrawing({
 
   useEffect(() => {
     let mounted = true;
+
     const loadMapComponents = async () => {
       try {
+        // console.log('🗺️ Starting to load map components...');
         if (typeof window === 'undefined') {
+          // console.log('🚫 Not in browser environment');
           return;
         }
+
         const [
           reactLeaflet,
           leafletDraw,
@@ -99,16 +105,23 @@ export default function MapWithDrawing({
           import('react-leaflet'),
           import('react-leaflet-draw'),
         ]);
+        // console.log('✅ Loaded libraries successfully');
+
+        // CSS should be imported globally in _app.tsx or layout.tsx
+        // await import('leaflet/dist/leaflet.css');
+        // await import('leaflet-draw/dist/leaflet.draw.css');
+        // console.log('✅ CSS should be pre-loaded globally');
 
         delete (L.Icon.Default.prototype as any)._getIconUrl;
         L.Icon.Default.mergeOptions({
-          iconRetinaUrl: '/leaflet/marker-icon-2x.png',
+          iconRetinaUrl: '/leaflet/marker-icon-2x.png', // Ensure these paths are correct in your public folder
           iconUrl: '/leaflet/marker-icon.png',
           shadowUrl: '/leaflet/marker-shadow.png',
         });
+        // console.log('✅ Fixed icons successfully');
 
-        function getRuleTypeColor(ruleTypeProp: Geofence['rule_type']) {
-            switch (ruleTypeProp) {
+        function getRuleTypeColor(ruleType: string) {
+            switch (ruleType) {
                 case 'FORBIDDEN': return '#ef4444';
                 case 'STAY_IN': return '#3b82f6';
                 case 'STANDARD': return '#10b981';
@@ -116,22 +129,19 @@ export default function MapWithDrawing({
             }
         }
 
-        function formatRuleType(ruleTypeProp: Geofence['rule_type']) {
-            switch (ruleTypeProp) {
+        function formatRuleType(ruleType: string) {
+            switch (ruleType) {
                 case 'FORBIDDEN': return 'Terlarang';
                 case 'STAY_IN': return 'Tetap di Dalam';
                 case 'STANDARD': return 'Standar';
-                default: return String(ruleTypeProp);
+                default: return ruleType;
             }
         }
 
-        interface GeofenceDisplayProps {
-            geofenceItem: Geofence;
-            isSelected: boolean;
-        }
-
-        function GeofenceDisplay({ geofenceItem, isSelected }: GeofenceDisplayProps) {
+        function GeofenceDisplay({ geofenceItem, isSelected }: { geofenceItem: Geofence, isSelected: boolean }) {
+            // console.log(`🏑 Rendering ${isSelected ? 'SELECTED' : ''} geofence: ${geofenceItem.name} (${geofenceItem.geofence_id})`);
             if (!geofenceItem?.definition) return null;
+
             const color = getRuleTypeColor(geofenceItem.rule_type);
             const pathOptions = {
                 fillColor: color,
@@ -139,12 +149,12 @@ export default function MapWithDrawing({
                 color: color,
                 weight: isSelected ? 3 : 2,
             };
-            const popupContent = `<strong>${geofenceItem.name}</strong><br />Aturan: ${formatRuleType(geofenceItem.rule_type)}`;
+            const popupContent = `<strong>${geofenceItem.name}</strong><br />Tipe: ${formatRuleType(geofenceItem.rule_type)}`;
 
             try {
                 if (geofenceItem.type === 'circle' && geofenceItem.definition.center && geofenceItem.definition.radius) {
                     const [lng, lat] = geofenceItem.definition.center;
-                    const validatedCenter = validateCoordinates([Number(lat), Number(lng)]);
+                    const validatedCenter = validateCoordinates([Number(lat), Number(lng)]); // Leaflet uses [lat, lng]
                     const radius = Number(geofenceItem.definition.radius);
                     if (validatedCenter && radius > 0) {
                         return (
@@ -159,12 +169,13 @@ export default function MapWithDrawing({
                      && geofenceItem.definition.coordinates) {
                     const coords = geofenceItem.definition.coordinates;
                     if (!coords || !Array.isArray(coords) || !coords[0] || !Array.isArray(coords[0])) {
+                        console.warn('⚠️ Invalid polygon structure:', geofenceItem);
                         return null;
                     }
                     const positions = coords[0].map((coord: number[]) => {
                         if (!coord || !Array.isArray(coord) || coord.length < 2) return null;
                         const [lng, lat] = coord;
-                        return validateCoordinates([Number(lat), Number(lng)]);
+                        return validateCoordinates([Number(lat), Number(lng)]); // Leaflet uses [lat, lng]
                     }).filter(p => p !== null) as [number, number][];
 
                     if (positions.length >= 3) {
@@ -173,49 +184,36 @@ export default function MapWithDrawing({
                                 <reactLeaflet.Popup>{popupContent}</reactLeaflet.Popup>
                             </reactLeaflet.Polygon>
                         );
+                    } else {
+                         // console.warn('⚠️ Insufficient valid points for polygon:', geofenceItem.name, positions);
                     }
                 }
             } catch (err) {
                 console.error(`❌ Error rendering geofence ${geofenceItem.geofence_id}:`, err, geofenceItem);
+                // setError(`Error rendering geofence: ${geofenceItem.name}`); // Avoid setting state in render function
             }
             return null;
         }
 
-        interface DrawControlWrapperProps {
-          drawMode?: "polygon" | "circle";
-          onCreated?: (e: any) => void;
-          onEdited?: (e: any) => void;
-          onDeleted?: (e: any) => void;
-          isCreating: boolean;
-        }
+        function DrawControlWrapper({ drawMode: currentDrawMode, onCreated, onEdited, onDeleted, isCreating: currentlyCreating }) {
+            const fgRef = useRef<L.FeatureGroup>(null); // Typed ref
+            featureGroupRef.current = fgRef.current; // Assign to outer ref
 
-        function DrawControlWrapper({
-          drawMode: currentDrawMode,
-          onCreated,
-          onEdited,
-          onDeleted,
-          isCreating: currentlyCreating
-        }: DrawControlWrapperProps) {
-            const fgRef = useRef<L.FeatureGroup>(null);
-            if (fgRef.current) { // Only assign if fgRef.current is not null
-                featureGroupRef.current = fgRef.current;
-            }
-
-
-            if (!currentlyCreating || viewOnly) {
+            if (!currentlyCreating || viewOnly) { // Disable drawing if viewOnly is true
                 return <reactLeaflet.FeatureGroup ref={fgRef} />;
             }
             
-            // PERBAIKAN DI SINI: Hapus L.Control.DrawOptions
-            const drawOptionsValue = {
+            const drawOptions: any = { // Use any for drawOptions if specific types are complex
                 polyline: false,
                 rectangle: false,
                 circlemarker: false,
                 marker: false,
-                polygon: currentDrawMode === 'polygon' ? { shapeOptions: { color: '#f06eaa' } } : false,
-                circle: currentDrawMode === 'circle' ? { shapeOptions: { color: '#f06eaa' } } : false,
+                polygon: currentDrawMode === 'polygon',
+                circle: currentDrawMode === 'circle',
             };
-                        
+            if (currentDrawMode === 'polygon') drawOptions.polygon = { shapeOptions: { color: '#f06eaa' } };
+            if (currentDrawMode === 'circle') drawOptions.circle = { shapeOptions: { color: '#f06eaa' } };
+            
             return (
                 <reactLeaflet.FeatureGroup ref={fgRef}>
                     <leafletDraw.EditControl
@@ -223,9 +221,9 @@ export default function MapWithDrawing({
                         onCreated={onCreated}
                         onEdited={onEdited}
                         onDeleted={onDeleted}
-                        draw={drawOptionsValue}
+                        draw={drawOptions}
                         edit={{
-                            featureGroup: fgRef.current!,
+                            featureGroup: fgRef.current!, // Non-null assertion if sure it will be set
                             remove: true,
                             edit: true,
                         }}
@@ -233,36 +231,36 @@ export default function MapWithDrawing({
                 </reactLeaflet.FeatureGroup>
             );
         }
-        
-        interface MapControllerProps {
-            center: [number, number] | null;
-            zoom: number;
-        }
 
-        function MapController({ center: currentCenter, zoom: currentZoom }: MapControllerProps) {
+        function MapController({ center: currentCenter, zoom: currentZoom }) {
             const map = reactLeaflet.useMap();
             mapRef.current = map;
             
             useEffect(() => {
                 if (map && onMapReady) {
+                    // console.log('🗺️ Map is ready, calling onMapReady callback');
                     onMapReady(map);
                 }
-            }, [map, onMapReady]);
+            }, [map]); // Removed onMapReady from deps to avoid re-trigger if onMapReady changes
 
             useEffect(() => {
                 const validatedCenter = validateCoordinates(currentCenter) || [-6.2088, 106.8456];
                 const validZoom = Number(currentZoom);
                 const finalZoom = isNaN(validZoom) ? 5 : validZoom;
                 
+                // console.log(`🗺️ Setting map view with center: ${validatedCenter}, zoom: ${finalZoom}`);
+                
                 if (mapZoomTimerRef.current) {
                     clearTimeout(mapZoomTimerRef.current);
                 }
-                map.setView(validatedCenter, finalZoom, { animate: false }); 
+                map.setView(validatedCenter, finalZoom, { animate: false });
                 
                 mapZoomTimerRef.current = setTimeout(() => {
                     if (map.getZoom() !== finalZoom) {
-                        // map.setView(validatedCenter, finalZoom, { animate: false });
+                        // console.log(`🗺️ Zoom was changed to ${map.getZoom()}, resetting to ${finalZoom}`);
+                        map.setView(validatedCenter, finalZoom, { animate: false });
                     }
+                    // console.log(`🗺️ Final map zoom is: ${map.getZoom()}`);
                 }, 500);
             }, [currentCenter, currentZoom, map]);
 
@@ -279,6 +277,7 @@ export default function MapWithDrawing({
             FeatureGroup: reactLeaflet.FeatureGroup,
           });
           setIsClient(true);
+          // console.log('✅ Map components set successfully');
         }
       } catch (err: any) {
         console.error('❌ Error loading map components:', err);
@@ -302,55 +301,52 @@ export default function MapWithDrawing({
   }, []);
 
   useEffect(() => {
-      if (!mapRef.current || !MapComponents || !isClient) return;
+      if (!mapRef.current || !MapComponents) return;
+
       const map = mapRef.current;
+      const fg = featureGroupRef.current;
+
+      if (isCreating && fg) {
+          // Hapus layer lama saat mode pembuatan dimulai atau drawMode berubah
+          fg.clearLayers();
+          console.log("Drawing mode: Cleared previous layers for new drawing.");
+      }
+
+      // Focus logic
       let targetBounds: L.LatLngBounds | null = null;
-      let targetCenter: [number,number] | null = null;
-      let targetZoom: number | null = null;
 
       if (selectedGeofence && validateCoordinates(getGeofenceCenter(selectedGeofence))) {
           targetBounds = getGeofenceBounds(selectedGeofence);
-          if (!targetBounds || !targetBounds.isValid()) {
-            targetCenter = getGeofenceCenter(selectedGeofence);
-            targetZoom = 15;
-          }
+          console.log(`🎯 Prioritas 1: Fokus pada geofence terpilih ${selectedGeofence.name}`, targetBounds);
       } else if (viewOnly && geofence && validateCoordinates(getGeofenceCenter(geofence))) {
           targetBounds = getGeofenceBounds(geofence);
-           if (!targetBounds || !targetBounds.isValid()) {
-            targetCenter = getGeofenceCenter(geofence);
-            targetZoom = 15;
-          }
+          console.log(`🎯 Prioritas 2: Fokus pada geofence view-only ${geofence.name}`, targetBounds);
       } else if (!isCreating && geofences.length > 0) {
           const allValidGeofences = geofences.filter(gf => validateCoordinates(getGeofenceCenter(gf)));
           if (allValidGeofences.length > 0) {
-              targetBounds = L.latLngBounds([]);
+              targetBounds = L.latLngBounds([]); // Inisialisasi bounds kosong
               allValidGeofences.forEach(gf => {
                   const bounds = getGeofenceBounds(gf);
                   if (bounds && bounds.isValid()) {
                       targetBounds!.extend(bounds);
                   }
               });
-              if (!targetBounds.isValid() && allValidGeofences.length === 1) {
-                  targetCenter = getGeofenceCenter(allValidGeofences[0]);
-                  targetZoom = 15;
-                  targetBounds = null;
-              } else if (!targetBounds.isValid()) {
-                  targetBounds = null;
-              }
+              console.log(`🌍 Prioritas 3: Menyesuaikan dengan semua ${allValidGeofences.length} geofence`, targetBounds);
           }
       }
       
       if (targetBounds && targetBounds.isValid()) {
-          map.fitBounds(targetBounds, { padding: [50, 50], maxZoom: 16, animate: true, duration: 0.5 });
-      } else if (targetCenter && targetZoom !== null) {
-          map.setView(targetCenter, targetZoom, {animate: true, duration: 0.5});
+          console.log(`🗺️ Menyesuaikan peta ke bounds:`, targetBounds.toBBoxString());
+          map.fitBounds(targetBounds, { padding: [50, 50], maxZoom: 16, animate: true });
       } else if (isCreating) {
+          // Jika membuat baru dan tidak ada fokus, gunakan center dan zoom dari props
           const validatedCenter = validateCoordinates(center) || [-6.2088, 106.8456];
           const finalZoom = isNaN(Number(zoom)) ? 5 : Number(zoom);
+          console.log(`✨ Mode pembuatan, set view ke: ${validatedCenter}, zoom: ${finalZoom}`);
           map.setView(validatedCenter, finalZoom);
       }
 
-  }, [selectedGeofence, geofences, geofence, viewOnly, isCreating, MapComponents, center, zoom, isClient]);
+  }, [selectedGeofence, geofences, geofence, viewOnly, isCreating, MapComponents, center, zoom]); // Tambahkan center dan zoom
 
 
   function getGeofenceBounds(gf: Geofence): L.LatLngBounds | null {
@@ -363,10 +359,7 @@ export default function MapWithDrawing({
           }
           if ((gf.type === 'polygon' || gf.type === 'multipolygon' || gf.type === 'circle') && gf.definition.coordinates && gf.definition.coordinates[0]) {
               const positions = gf.definition.coordinates[0]
-                  .map(c => {
-                      if (!Array.isArray(c) || c.length < 2) return null;
-                      return validateCoordinates([Number(c[1]), Number(c[0])]);
-                  })
+                  .map(c => validateCoordinates([c[1], c[0]]))
                   .filter((p): p is [number, number] => p !== null);
               if (positions.length >= 3) return L.polygon(positions).getBounds();
           }
@@ -383,9 +376,8 @@ export default function MapWithDrawing({
           return validateCoordinates([Number(lat), Number(lng)]);
       }
       if ((gf.type === 'polygon' || gf.type === 'multipolygon') && gf.definition.coordinates && gf.definition.coordinates[0] && gf.definition.coordinates[0].length > 0) {
-          const firstPoint = gf.definition.coordinates[0][0];
-          if (!Array.isArray(firstPoint) || firstPoint.length < 2) return null;
-          const [lng, lat] = firstPoint;
+          // Ambil titik pertama sebagai "pusat" kasar atau hitung centroid jika perlu
+          const [lng, lat] = gf.definition.coordinates[0][0];
           return validateCoordinates([Number(lat), Number(lng)]);
       }
       return null;
@@ -417,7 +409,7 @@ export default function MapWithDrawing({
 
   const { MapContainer, TileLayer, DrawControl, GeofenceDisplay, MapController, FeatureGroup } = MapComponents;
 
-  const finalCenter = validateCoordinates(center) || [-6.2088, 106.8456];
+  const finalCenter = validateCoordinates(center) || [-6.2088, 106.8456]; // Default ke Jakarta jika tidak valid
   const finalZoom = isNaN(Number(zoom)) ? 5 : Number(zoom);
 
 
@@ -427,7 +419,8 @@ export default function MapWithDrawing({
         center={finalCenter}
         zoom={finalZoom}
         style={{ width: '100%', height: '100%' }}
-        ref={mapRef}
+        // whenReady={(map: LeafletMap) => { mapRef.current = map; }} // whenReady juga bisa digunakan di sini jika tipe benar
+        ref={mapRef} // Menggunakan ref untuk mendapatkan instance peta
       >
         <MapController center={finalCenter} zoom={finalZoom} />
 
@@ -436,16 +429,21 @@ export default function MapWithDrawing({
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
 
-        <FeatureGroup ref={featureGroupRef}>
+        <FeatureGroup ref={featureGroupRef}> {/* Gunakan FeatureGroup yang direferensikan */}
+            {/* Render selected geofence with higher emphasis if not creating */}
             {!isCreating && selectedGeofence && validateCoordinates(getGeofenceCenter(selectedGeofence)) && (
                 <GeofenceDisplay
-                    key={`selected-${selectedGeofence.geofence_id}-${Date.now()}`}
+                    key={`selected-${selectedGeofence.geofence_id}-${Date.now()}`} // Unique key
                     geofenceItem={selectedGeofence}
                     isSelected={true}
                 />
             )}
-            {!viewOnly && geofences && geofences.filter(gf => !selectedGeofence || gf.geofence_id !== selectedGeofence.geofence_id).map(gf => {
-                if (!validateCoordinates(getGeofenceCenter(gf))) return null;
+
+            {/* Render all other geofences (or all if no selection and not creating) */}
+            {!isCreating && geofences && geofences.map(gf => {
+                if (selectedGeofence && gf.geofence_id === selectedGeofence.geofence_id) return null; // Sudah dirender di atas
+                if (!validateCoordinates(getGeofenceCenter(gf))) return null; // Validasi sebelum render
+                // console.log(`Rendering unselected geofence: ${gf.name}`);
                 return (
                     <GeofenceDisplay
                         key={`all-${gf.geofence_id}`}
@@ -454,11 +452,13 @@ export default function MapWithDrawing({
                     />
                 );
             })}
+
+            {/* Render single geofence in viewOnly mode */}
             {viewOnly && geofence && validateCoordinates(getGeofenceCenter(geofence)) && (!selectedGeofence || geofence.geofence_id !== selectedGeofence.geofence_id) && (
                  <GeofenceDisplay
                     key={`single-view-${geofence.geofence_id}`}
                     geofenceItem={geofence}
-                    isSelected={true}
+                    isSelected={true} // Single view geofence is always "selected" for display
                 />
             )}
         </FeatureGroup>

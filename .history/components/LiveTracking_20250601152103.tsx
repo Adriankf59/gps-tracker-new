@@ -27,6 +27,7 @@ import {
     useProjectGeofenceDetection,
     setVehiclesDetailForDetection,
     saveGeofenceEventToApi,
+    // GeofenceEvent as DetectorGeofenceEvent, // Not used
     ProjectCoordinate
 } from '@/lib/geofenceDetector'; // Pastikan path ini benar
 import { saveAlert } from '@/lib/alertService'; // Pastikan path ini benar
@@ -56,10 +57,11 @@ interface ProjectGeofence {
   date_created: string;
 }
 
+// Local Vehicle type in LiveTracking.tsx
 interface Vehicle {
   vehicle_id: string;
   user_id: string;
-  gps_id: string | null;
+  gps_id: string | null; // Allows null
   license_plate: string;
   name: string;
   make: string;
@@ -413,6 +415,9 @@ export function LiveTracking() {
         } else if (selectedGeofenceDetailSWR && selectedGeofenceDetailSWR.geofence_id.toString() === vehicle.geofence_id.toString() && validateGeofenceCoordinates(selectedGeofenceDetailSWR)) {
             setAssignedGeofenceForDisplay(selectedGeofenceDetailSWR);
         } else {
+          // If not in local cache or SWR cache, SWR for selectedGeofenceDetailSWR will trigger a fetch
+          // and update through its onSuccess callback.
+          // You might want to set to null temporarily or show a loading state for the geofence.
           setAssignedGeofenceForDisplay(null);
         }
     } else {
@@ -421,15 +426,24 @@ export function LiveTracking() {
   }, [geofences, validateGeofenceCoordinates, selectedGeofenceDetailSWR]);
 
 
+  // PERBAIKAN DI SINI
   useEffect(() => {
     if (vehicles && vehicles.length > 0) {
+      // The error indicates `setVehiclesDetailForDetection` expects an array of objects
+      // where `gps_id` is `string`, not `string | null`.
+      // We filter out vehicles with `null` gps_id and then cast gps_id to string.
       const vehiclesForDetection = vehicles
-        .filter(v => v.gps_id !== null)
-        .map(v_filtered => ({
+        .filter(v => v.gps_id !== null) // Filter out vehicles where gps_id is null
+        .map(v_filtered => ({         // Map to the expected structure
           ...v_filtered,
-          gps_id: v_filtered.gps_id as string,
+          gps_id: v_filtered.gps_id as string, // Assert gps_id is now string
         }));
-      setVehiclesDetailForDetection(vehiclesForDetection as any); // Cast to any if type still mismatches, ideally fix type in detector
+      
+      // This assumes that the structure of `v_filtered` (after spreading) combined with the asserted `gps_id`
+      // matches the `Vehicle` type imported/used by `setVehiclesDetailForDetection`.
+      // If other properties also mismatch, this `as any` cast would hide those errors.
+      // Ideally, the types should be harmonized or a specific type for detection should be used.
+      setVehiclesDetailForDetection(vehiclesForDetection as any); // Using 'as any' if there are other subtle mismatches not caught by the primary error. Remove if not needed.
     }
   }, [vehicles, setVehiclesDetailForDetection]);
 
@@ -675,11 +689,8 @@ export function LiveTracking() {
                         {selectedVehicleId === vehicle.vehicle_id && (
                           <Eye className="w-3.5 h-3.5 text-blue-700 shrink-0" />
                         )}
-                        {/* PERBAIKAN DI SINI */}
                         {vehicle.geofence_id && (
-                          <span title="Memiliki geofence ter-assign">
-                            <Shield className="w-3.5 h-3.5 text-green-600 shrink-0" />
-                          </span>
+                          <Shield className="w-3.5 h-3.5 text-green-600 shrink-0" title="Memiliki geofence ter-assign" />
                         )}
                       </div>
                       <Badge className={`text-xs px-1.5 py-0.5 font-medium ${getStatusColorClass(vehicle.isOnline ? vehicle.status : 'offline')}`}>

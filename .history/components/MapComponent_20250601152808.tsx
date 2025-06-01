@@ -1,8 +1,8 @@
 "use client";
 
 import React, { useEffect, useMemo, useRef } from 'react';
-import { MapContainer, TileLayer, Marker, Popup, Circle, Polygon, Polyline, useMap } from 'react-leaflet';
-import L, { LatLngExpression, Map as LeafletMap } from 'leaflet';
+import { MapContainer, TileLayer, Marker, Popup, useMap, Circle, Polygon, Polyline } from 'react-leaflet';
+import L, { LatLngExpression, Map as LeafletMap } from 'leaflet'; // Rename imported Map to LeafletMap to avoid conflict
 import 'leaflet/dist/leaflet.css';
 
 // Interface untuk geofence
@@ -200,7 +200,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
   className = ""
 }) => {
 
-  const mapRef = useRef<LeafletMap | null>(null);
+  const mapRef = useRef<LeafletMap | null>(null); // Use LeafletMap alias
 
   const shouldAutoFit = routePolyline && routePolyline.length > 1;
 
@@ -296,7 +296,8 @@ const MapComponent: React.FC<MapComponentProps> = ({
         zoom={initialZoom}
         style={{ height: '100%', width: '100%' }}
         className="rounded-lg"
-        ref={mapRef}
+        // PERBAIKAN DI SINI
+        whenReady={(mapInstance: LeafletMap) => { mapRef.current = mapInstance; }}
       >
         <TileLayer
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
@@ -306,8 +307,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
         {shouldAutoFit ? (
           <AutoFitBounds routePolyline={routePolyline} vehicles={vehicles} />
         ) : (
-          // PERBAIKAN DI SINI
-          <ReactiveMapView center={centerCoordinates ?? null} zoom={zoomLevel || initialZoom} />
+          <ReactiveMapView center={centerCoordinates} zoom={zoomLevel || initialZoom} />
         )}
 
         <MapEvents onClick={handleMapGeneralClick} />

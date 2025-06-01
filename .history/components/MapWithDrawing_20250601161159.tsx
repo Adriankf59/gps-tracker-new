@@ -1,10 +1,8 @@
 "use client";
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-// Import L directly for type usage and direct calls if needed
 import L, { LatLngExpression, Map as LeafletMap } from 'leaflet';
 
-// Import types only
 interface Geofence {
   geofence_id: number;
   user_id: string | null;
@@ -14,15 +12,15 @@ interface Geofence {
   status: "active" | "inactive";
   definition: {
     coordinates?: number[][][];
-    center?: number[]; // [lng, lat] for consistency with GeoJSON-like structures
+    center?: number[];
     radius?: number;
-    type: string; // e.g., "Polygon", "Circle"
+    type: string;
   };
   date_created: string;
 }
 
 interface MapWithDrawingProps {
-  center: [number, number]; // [lat, lng] for Leaflet
+  center: [number, number];
   zoom: number;
   drawMode?: "polygon" | "circle";
   onDrawCreated?: (e: any) => void;
@@ -34,10 +32,9 @@ interface MapWithDrawingProps {
   geofences?: Geofence[];
   isCreating?: boolean;
   selectedGeofence?: Geofence | null;
-  onMapReady?: (map: LeafletMap) => void; // Use LeafletMap type
+  onMapReady?: (map: LeafletMap) => void;
   drawnLayersForEditing?: L.Layer[];
 }
-
 
 export default function MapWithDrawing({
   center,
@@ -60,8 +57,8 @@ export default function MapWithDrawing({
   const [MapComponents, setMapComponents] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
   const mapContainerRef = useRef<HTMLDivElement>(null);
-  const mapRef = useRef<LeafletMap | null>(null); // Use LeafletMap type
-  const featureGroupRef = useRef<L.FeatureGroup | null>(null); // Use L.FeatureGroup
+  const mapRef = useRef<LeafletMap | null>(null);
+  const featureGroupRef = useRef<L.FeatureGroup | null>(null);
 
   const validateCoordinates = (coords: any): [number, number] | null => {
       try {
@@ -83,7 +80,6 @@ export default function MapWithDrawing({
           return null;
       }
   };
-
 
   useEffect(() => {
     let mounted = true;
@@ -107,7 +103,7 @@ export default function MapWithDrawing({
           shadowUrl: '/leaflet/marker-shadow.png',
         });
 
-        function getRuleTypeColor(ruleTypeProp: Geofence['rule_type']) {
+        function getRuleTypeColor(ruleTypeProp: Geofence['rule_type']) { // More specific type
             switch (ruleTypeProp) {
                 case 'FORBIDDEN': return '#ef4444';
                 case 'STAY_IN': return '#3b82f6';
@@ -116,7 +112,7 @@ export default function MapWithDrawing({
             }
         }
 
-        function formatRuleType(ruleTypeProp: Geofence['rule_type']) {
+        function formatRuleType(ruleTypeProp: Geofence['rule_type']) { // More specific type
             switch (ruleTypeProp) {
                 case 'FORBIDDEN': return 'Terlarang';
                 case 'STAY_IN': return 'Tetap di Dalam';
@@ -181,6 +177,7 @@ export default function MapWithDrawing({
             return null;
         }
 
+        // PERBAIKAN: Interface untuk props DrawControlWrapper
         interface DrawControlWrapperProps {
           drawMode?: "polygon" | "circle";
           onCreated?: (e: any) => void;
@@ -190,24 +187,20 @@ export default function MapWithDrawing({
         }
 
         function DrawControlWrapper({
-          drawMode: currentDrawMode,
+          drawMode: currentDrawMode, // Alias untuk drawMode
           onCreated,
           onEdited,
           onDeleted,
-          isCreating: currentlyCreating
+          isCreating: currentlyCreating // Alias untuk isCreating
         }: DrawControlWrapperProps) {
             const fgRef = useRef<L.FeatureGroup>(null);
-            if (fgRef.current) { // Only assign if fgRef.current is not null
-                featureGroupRef.current = fgRef.current;
-            }
-
+            featureGroupRef.current = fgRef.current; // Assign to outer component's ref
 
             if (!currentlyCreating || viewOnly) {
                 return <reactLeaflet.FeatureGroup ref={fgRef} />;
             }
             
-            // PERBAIKAN DI SINI: Hapus L.Control.DrawOptions
-            const drawOptionsValue = {
+            const drawOptionsValue: L.Control.DrawOptions = { // More specific type
                 polyline: false,
                 rectangle: false,
                 circlemarker: false,
@@ -225,7 +218,7 @@ export default function MapWithDrawing({
                         onDeleted={onDeleted}
                         draw={drawOptionsValue}
                         edit={{
-                            featureGroup: fgRef.current!,
+                            featureGroup: fgRef.current!, // Non-null assertion since it's created above
                             remove: true,
                             edit: true,
                         }}
@@ -234,6 +227,7 @@ export default function MapWithDrawing({
             );
         }
         
+        // PERBAIKAN: Interface untuk props MapController
         interface MapControllerProps {
             center: [number, number] | null;
             zoom: number;

@@ -270,7 +270,7 @@ export function GeofenceManager() {
       } catch (error) {
         console.error('Error loading user and initial data:', error);
         toast.error("Terjadi kesalahan saat memuat data awal.");
-        setLoading(false);
+        setLoading(false); // Pastikan loading dihentikan jika ada error di level ini
       }
     };
     loadUserAndData();
@@ -330,6 +330,7 @@ export function GeofenceManager() {
         const polygonLayer = layer as Polygon;
         const latlngsArray = polygonLayer.getLatLngs();
         
+        // PERBAIKAN DI SINI: Deklarasi outerRing
         let outerRing: LatLng[];
 
         if (Array.isArray(latlngsArray) && latlngsArray.length > 0) {
@@ -379,7 +380,7 @@ export function GeofenceManager() {
         toast.success("Geofence berhasil disimpan");
         setIsCreating(false);
         setDrawnLayers([]);
-        const fetchedGeofencesList = await fetchGeofences(userId);
+        const fetchedGeofencesList = await fetchGeofences(userId); // Ambil daftar terbaru
         const savedGeofenceResponse = await response.json();
         const newGeo = savedGeofenceResponse.data;
 
@@ -812,8 +813,7 @@ export function GeofenceManager() {
                         id={`vehicle-${vehicle.vehicle_id}`}
                         checked={isChecked}
                         onCheckedChange={() => { /* Handled by div onClick */ }}
-                        // PERBAIKAN DI SINI
-                        disabled={Boolean(isAssignedElsewhere && !isChecked)}
+                        disabled={isAssignedElsewhere && !isChecked}
                         className={isAssignedElsewhere && !isChecked ? "cursor-not-allowed" : ""}
                       />
                       <label htmlFor={`vehicle-${vehicle.vehicle_id}`} className="flex-1 cursor-pointer">

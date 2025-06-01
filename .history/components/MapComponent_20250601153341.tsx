@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useRef } from 'react';
-import { MapContainer, TileLayer, Marker, Popup, Circle, Polygon, Polyline, useMap } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup, useMap, Circle, Polygon, Polyline } from 'react-leaflet';
 import L, { LatLngExpression, Map as LeafletMap } from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 
@@ -296,7 +296,12 @@ const MapComponent: React.FC<MapComponentProps> = ({
         zoom={initialZoom}
         style={{ height: '100%', width: '100%' }}
         className="rounded-lg"
-        ref={mapRef}
+        // PERBAIKAN DI SINI
+        whenReady={(mapInstance: any) => { // Menggunakan 'any' untuk mapInstance
+          if (mapInstance) {
+            mapRef.current = mapInstance as LeafletMap; // Assertion ke LeafletMap
+          }
+        }}
       >
         <TileLayer
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
@@ -306,8 +311,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
         {shouldAutoFit ? (
           <AutoFitBounds routePolyline={routePolyline} vehicles={vehicles} />
         ) : (
-          // PERBAIKAN DI SINI
-          <ReactiveMapView center={centerCoordinates ?? null} zoom={zoomLevel || initialZoom} />
+          <ReactiveMapView center={centerCoordinates} zoom={zoomLevel || initialZoom} />
         )}
 
         <MapEvents onClick={handleMapGeneralClick} />

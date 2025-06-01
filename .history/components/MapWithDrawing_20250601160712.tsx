@@ -46,14 +46,13 @@ export default function MapWithDrawing({
   onDrawCreated,
   onDrawEdited,
   onDrawDeleted,
-  ruleType = "FORBIDDEN", // ruleType prop seems unused in this component
+  ruleType = "FORBIDDEN",
   viewOnly = false,
   geofence,
   geofences = [],
   isCreating = false,
   selectedGeofence = null,
   onMapReady,
-  // drawnLayersForEditing prop seems unused in this component currently
 }: MapWithDrawingProps) {
   const mapZoomTimerRef = useRef<NodeJS.Timeout | null>(null);
   const [isClient, setIsClient] = useState(false);
@@ -66,15 +65,18 @@ export default function MapWithDrawing({
   const validateCoordinates = (coords: any): [number, number] | null => {
       try {
           if (!coords || !Array.isArray(coords) || coords.length !== 2) {
+              // console.warn('Invalid coordinates array:', coords);
               return null;
           }
           const [lat, lng] = coords;
           const numLat = Number(lat);
           const numLng = Number(lng);
           if (isNaN(numLat) || isNaN(numLng) || !isFinite(numLat) || !isFinite(numLng)) {
+              // console.warn('Invalid coordinate values:', lat, lng);
               return null;
           }
           if (numLat < -90 || numLat > 90 || numLng < -180 || numLng > 180) {
+              // console.warn('Coordinates out of valid range:', numLat, numLng);
               return null;
           }
           return [numLat, numLng];
@@ -87,11 +89,15 @@ export default function MapWithDrawing({
 
   useEffect(() => {
     let mounted = true;
+
     const loadMapComponents = async () => {
       try {
+        // console.log('🗺️ Starting to load map components...');
         if (typeof window === 'undefined') {
+          // console.log('🚫 Not in browser environment');
           return;
         }
+
         const [
           reactLeaflet,
           leafletDraw,
@@ -99,16 +105,23 @@ export default function MapWithDrawing({
           import('react-leaflet'),
           import('react-leaflet-draw'),
         ]);
+        // console.log('✅ Loaded libraries successfully');
+
+        // CSS should be imported globally in _app.tsx or layout.tsx
+        // REMOVED: await import('leaflet/dist/leaflet.css');
+        // REMOVED: await import('leaflet-draw/dist/leaflet.draw.css');
+        // console.log('✅ CSS should be pre-loaded globally by _app.tsx or layout.tsx');
 
         delete (L.Icon.Default.prototype as any)._getIconUrl;
         L.Icon.Default.mergeOptions({
-          iconRetinaUrl: '/leaflet/marker-icon-2x.png',
+          iconRetinaUrl: '/leaflet/marker-icon-2x.png', // Ensure these paths are correct in your public folder
           iconUrl: '/leaflet/marker-icon.png',
           shadowUrl: '/leaflet/marker-shadow.png',
         });
+        // console.log('✅ Fixed icons successfully');
 
-        function getRuleTypeColor(ruleTypeProp: Geofence['rule_type']) {
-            switch (ruleTypeProp) {
+        function getRuleTypeColor(ruleType: string) {
+            switch (ruleType) {
                 case 'FORBIDDEN': return '#ef4444';
                 case 'STAY_IN': return '#3b82f6';
                 case 'STANDARD': return '#10b981';
@@ -116,22 +129,18 @@ export default function MapWithDrawing({
             }
         }
 
-        function formatRuleType(ruleTypeProp: Geofence['rule_type']) {
-            switch (ruleTypeProp) {
+        function formatRuleType(ruleType: string) {
+            switch (ruleType) {
                 case 'FORBIDDEN': return 'Terlarang';
                 case 'STAY_IN': return 'Tetap di Dalam';
                 case 'STANDARD': return 'Standar';
-                default: return String(ruleTypeProp);
+                default: return ruleType;
             }
         }
 
-        interface GeofenceDisplayProps {
-            geofenceItem: Geofence;
-            isSelected: boolean;
-        }
-
-        function GeofenceDisplay({ geofenceItem, isSelected }: GeofenceDisplayProps) {
+        function GeofenceDisplay({ geofenceItem, isSelected }: { geofenceItem: Geofence, isSelected: boolean }) {
             if (!geofenceItem?.definition) return null;
+
             const color = getRuleTypeColor(geofenceItem.rule_type);
             const pathOptions = {
                 fillColor: color,
@@ -139,7 +148,7 @@ export default function MapWithDrawing({
                 color: color,
                 weight: isSelected ? 3 : 2,
             };
-            const popupContent = `<strong>${geofenceItem.name}</strong><br />Aturan: ${formatRuleType(geofenceItem.rule_type)}`;
+            const popupContent = `<strong>${geofenceItem.name}</strong><br />Tipe: ${formatRuleType(geofenceItem.rule_type)}`;
 
             try {
                 if (geofenceItem.type === 'circle' && geofenceItem.definition.center && geofenceItem.definition.radius) {
@@ -159,6 +168,7 @@ export default function MapWithDrawing({
                      && geofenceItem.definition.coordinates) {
                     const coords = geofenceItem.definition.coordinates;
                     if (!coords || !Array.isArray(coords) || !coords[0] || !Array.isArray(coords[0])) {
+                        // console.warn('⚠️ Invalid polygon structure:', geofenceItem.name);
                         return null;
                     }
                     const positions = coords[0].map((coord: number[]) => {
@@ -181,41 +191,25 @@ export default function MapWithDrawing({
             return null;
         }
 
-        interface DrawControlWrapperProps {
-          drawMode?: "polygon" | "circle";
-          onCreated?: (e: any) => void;
-          onEdited?: (e: any) => void;
-          onDeleted?: (e: any) => void;
-          isCreating: boolean;
-        }
-
-        function DrawControlWrapper({
-          drawMode: currentDrawMode,
-          onCreated,
-          onEdited,
-          onDeleted,
-          isCreating: currentlyCreating
-        }: DrawControlWrapperProps) {
+        function DrawControlWrapper({ drawMode: currentDrawMode, onCreated, onEdited, onDeleted, isCreating: currentlyCreating }) {
             const fgRef = useRef<L.FeatureGroup>(null);
-            if (fgRef.current) { // Only assign if fgRef.current is not null
-                featureGroupRef.current = fgRef.current;
-            }
-
+            featureGroupRef.current = fgRef.current;
 
             if (!currentlyCreating || viewOnly) {
                 return <reactLeaflet.FeatureGroup ref={fgRef} />;
             }
             
-            // PERBAIKAN DI SINI: Hapus L.Control.DrawOptions
-            const drawOptionsValue = {
+            const drawOptions: any = {
                 polyline: false,
                 rectangle: false,
                 circlemarker: false,
                 marker: false,
-                polygon: currentDrawMode === 'polygon' ? { shapeOptions: { color: '#f06eaa' } } : false,
-                circle: currentDrawMode === 'circle' ? { shapeOptions: { color: '#f06eaa' } } : false,
+                polygon: currentDrawMode === 'polygon',
+                circle: currentDrawMode === 'circle',
             };
-                        
+            if (currentDrawMode === 'polygon') drawOptions.polygon = { shapeOptions: { color: '#f06eaa' } };
+            if (currentDrawMode === 'circle') drawOptions.circle = { shapeOptions: { color: '#f06eaa' } };
+            
             return (
                 <reactLeaflet.FeatureGroup ref={fgRef}>
                     <leafletDraw.EditControl
@@ -223,7 +217,7 @@ export default function MapWithDrawing({
                         onCreated={onCreated}
                         onEdited={onEdited}
                         onDeleted={onDeleted}
-                        draw={drawOptionsValue}
+                        draw={drawOptions}
                         edit={{
                             featureGroup: fgRef.current!,
                             remove: true,
@@ -233,13 +227,8 @@ export default function MapWithDrawing({
                 </reactLeaflet.FeatureGroup>
             );
         }
-        
-        interface MapControllerProps {
-            center: [number, number] | null;
-            zoom: number;
-        }
 
-        function MapController({ center: currentCenter, zoom: currentZoom }: MapControllerProps) {
+        function MapController({ center: currentCenter, zoom: currentZoom }) {
             const map = reactLeaflet.useMap();
             mapRef.current = map;
             
@@ -247,7 +236,7 @@ export default function MapWithDrawing({
                 if (map && onMapReady) {
                     onMapReady(map);
                 }
-            }, [map, onMapReady]);
+            }, [map, onMapReady]); // onMapReady should be stable or memoized if included
 
             useEffect(() => {
                 const validatedCenter = validateCoordinates(currentCenter) || [-6.2088, 106.8456];
@@ -257,11 +246,13 @@ export default function MapWithDrawing({
                 if (mapZoomTimerRef.current) {
                     clearTimeout(mapZoomTimerRef.current);
                 }
+                // Set initial view without animation to prevent issues, then adjust with animation if needed or let fitBounds handle it
                 map.setView(validatedCenter, finalZoom, { animate: false }); 
                 
                 mapZoomTimerRef.current = setTimeout(() => {
                     if (map.getZoom() !== finalZoom) {
-                        // map.setView(validatedCenter, finalZoom, { animate: false });
+                        // console.log(`🗺️ Zoom was changed to ${map.getZoom()}, trying to reset to ${finalZoom}`);
+                        // map.setView(validatedCenter, finalZoom, { animate: false }); // Be cautious with re-setting view
                     }
                 }, 500);
             }, [currentCenter, currentZoom, map]);
@@ -303,16 +294,18 @@ export default function MapWithDrawing({
 
   useEffect(() => {
       if (!mapRef.current || !MapComponents || !isClient) return;
+
       const map = mapRef.current;
       let targetBounds: L.LatLngBounds | null = null;
       let targetCenter: [number,number] | null = null;
       let targetZoom: number | null = null;
 
+
       if (selectedGeofence && validateCoordinates(getGeofenceCenter(selectedGeofence))) {
           targetBounds = getGeofenceBounds(selectedGeofence);
           if (!targetBounds || !targetBounds.isValid()) {
             targetCenter = getGeofenceCenter(selectedGeofence);
-            targetZoom = 15;
+            targetZoom = 15; // Default zoom for single selected geofence if bounds invalid
           }
       } else if (viewOnly && geofence && validateCoordinates(getGeofenceCenter(geofence))) {
           targetBounds = getGeofenceBounds(geofence);
@@ -333,9 +326,9 @@ export default function MapWithDrawing({
               if (!targetBounds.isValid() && allValidGeofences.length === 1) {
                   targetCenter = getGeofenceCenter(allValidGeofences[0]);
                   targetZoom = 15;
-                  targetBounds = null;
+                  targetBounds = null; // Ensure we don't try to fit invalid bounds
               } else if (!targetBounds.isValid()) {
-                  targetBounds = null;
+                  targetBounds = null; // Cannot fit invalid bounds
               }
           }
       }
@@ -427,7 +420,8 @@ export default function MapWithDrawing({
         center={finalCenter}
         zoom={finalZoom}
         style={{ width: '100%', height: '100%' }}
-        ref={mapRef}
+        // whenCreated is not a valid prop, use ref or whenReady
+        ref={mapRef} // Using ref is a good way to get map instance
       >
         <MapController center={finalCenter} zoom={finalZoom} />
 

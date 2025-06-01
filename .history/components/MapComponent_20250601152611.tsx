@@ -1,8 +1,8 @@
 "use client";
 
 import React, { useEffect, useMemo, useRef } from 'react';
-import { MapContainer, TileLayer, Marker, Popup, Circle, Polygon, Polyline, useMap } from 'react-leaflet';
-import L, { LatLngExpression, Map as LeafletMap } from 'leaflet';
+import { MapContainer, TileLayer, Marker, Popup, useMap, Circle, Polygon, Polyline } from 'react-leaflet';
+import L, { LatLngExpression, Map } from 'leaflet'; // Import Map type
 import 'leaflet/dist/leaflet.css';
 
 // Interface untuk geofence
@@ -51,6 +51,7 @@ interface MapComponentProps {
   className?: string;
 }
 
+// Component for auto-fitting bounds when showing route
 function AutoFitBounds({
   routePolyline,
   vehicles
@@ -62,9 +63,12 @@ function AutoFitBounds({
 
   useEffect(() => {
     if (!map) return;
+
     let bounds: L.LatLngBounds | null = null;
 
+    // Include route polyline in bounds
     if (routePolyline && routePolyline.length > 1) {
+      // Ensure routePolyline points are valid LatLngExpressions
       const validRoutePoints = routePolyline.filter(
         p => Array.isArray(p) && p.length === 2 && !isNaN(p[0]) && !isNaN(p[1])
       ) as LatLngExpression[];
@@ -73,6 +77,7 @@ function AutoFitBounds({
       }
     }
 
+    // Include vehicle markers in bounds
     vehicles.forEach(vehicle => {
       if (vehicle.position && !isNaN(vehicle.position[0]) && !isNaN(vehicle.position[1])) {
         const vehicleLatLng: LatLngExpression = [vehicle.position[0], vehicle.position[1]];
@@ -86,7 +91,7 @@ function AutoFitBounds({
 
     if (bounds && bounds.isValid()) {
       map.fitBounds(bounds, {
-        padding: [50, 50],
+        padding: [50, 50], // Increased padding
         maxZoom: 16
       });
     }
@@ -146,14 +151,14 @@ const createIcon = (emoji: string, color: string, isSelected?: boolean) => {
     `,
     className: 'custom-div-icon',
     iconSize: isSelected ? [36, 36] : [30, 30],
-    iconAnchor: isSelected ? [18, 36] : [15, 30],
+    iconAnchor: isSelected ? [18, 36] : [15, 30], // Adjusted anchor for better placement
     popupAnchor: [0, -15]
   });
 };
 
 const createRouteIcon = (type: 'start' | 'end', isMotor: boolean = false) => {
   const text = type === 'start' ? 'S' : 'E';
-  const color = type === 'start' ? '#10B981' : '#EF4444';
+  const color = type === 'start' ? '#10B981' : '#EF4444'; // Green for start, Red for end
 
   return new L.DivIcon({
     html: `
@@ -174,7 +179,7 @@ const createRouteIcon = (type: 'start' | 'end', isMotor: boolean = false) => {
     `,
     className: 'route-marker-icon',
     iconSize: [32, 32],
-    iconAnchor: [16, 32],
+    iconAnchor: [16, 32], // Adjusted anchor
     popupAnchor: [0, -16]
   });
 };
@@ -200,7 +205,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
   className = ""
 }) => {
 
-  const mapRef = useRef<LeafletMap | null>(null);
+  const mapRef = useRef<Map | null>(null); // Use Map from leaflet
 
   const shouldAutoFit = routePolyline && routePolyline.length > 1;
 
@@ -256,21 +261,22 @@ const MapComponent: React.FC<MapComponentProps> = ({
   };
 
   const getGeofenceStyle = (geofence: ProjectGeofence) => {
-    let color = '#3388ff';
+    let color = '#3388ff'; // Default blue for STANDARD or undefined
     let fillColor = '#3388ff';
     let fillOpacity = 0.2;
 
     switch (geofence.rule_type) {
       case 'FORBIDDEN':
-        color = '#ff0000';
+        color = '#ff0000'; // Red
         fillColor = '#ff0000';
         break;
       case 'STAY_IN':
-        color = '#00cc00';
+        color = '#00cc00'; // Green (lebih cerah)
         fillColor = '#00cc00';
         break;
       case 'STANDARD':
       default:
+        // Default styles are already set
         break;
     }
     if (geofence.status === 'inactive') {
@@ -283,8 +289,8 @@ const MapComponent: React.FC<MapComponentProps> = ({
 
   const getRouteStyle = () => {
     return {
-      color: '#2563EB',
-      weight: 5,
+      color: '#2563EB', // Biru tua
+      weight: 5,       // Lebih tebal
       opacity: 0.7,
     };
   };
@@ -296,7 +302,8 @@ const MapComponent: React.FC<MapComponentProps> = ({
         zoom={initialZoom}
         style={{ height: '100%', width: '100%' }}
         className="rounded-lg"
-        ref={mapRef}
+        // PERBAIKAN DI SINI
+        whenReady={mapInstance => { mapRef.current = mapInstance; }}
       >
         <TileLayer
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
@@ -306,8 +313,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
         {shouldAutoFit ? (
           <AutoFitBounds routePolyline={routePolyline} vehicles={vehicles} />
         ) : (
-          // PERBAIKAN DI SINI
-          <ReactiveMapView center={centerCoordinates ?? null} zoom={zoomLevel || initialZoom} />
+          <ReactiveMapView center={centerCoordinates} zoom={zoomLevel || initialZoom} />
         )}
 
         <MapEvents onClick={handleMapGeneralClick} />
@@ -335,6 +341,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
           const style = getGeofenceStyle(geofence);
 
           if (geofence.type === 'circle' && geofence.definition.center && geofence.definition.radius) {
+            // Geofence definition center is [lng, lat], Leaflet center is [lat, lng]
             const centerLatLng: LatLngExpression = [geofence.definition.center[1], geofence.definition.center[0]];
             if (isNaN(centerLatLng[0]) || isNaN(centerLatLng[1]) || isNaN(geofence.definition.radius)) return null;
             return (
@@ -348,6 +355,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
               </Circle>
             );
           } else if (geofence.type === 'polygon' && geofence.definition.coordinates && geofence.definition.coordinates[0]) {
+            // Geofence definition coordinates are [[lng, lat], ...], Leaflet positions are [[lat, lng], ...]
             const polygonLatLngs: LatLngExpression[] = geofence.definition.coordinates[0]
               .map((coord: number[]) => {
                 if (Array.isArray(coord) && coord.length === 2 && !isNaN(coord[0]) && !isNaN(coord[1])) {
@@ -416,7 +424,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
                   <div style={{ fontSize: '11px', marginBottom: '8px' }}>
                     <strong>Koordinat:</strong><br />{vehicle.position[0].toFixed(5)}, {vehicle.position[1].toFixed(5)}
                   </div>
-                  {!isRouteMarker && (
+                  {!isRouteMarker && ( // Do not show these details for route start/end markers
                     <div style={{ fontSize: '11px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px', marginBottom: '8px' }}>
                       <div>Kecepatan: {vehicle.speed} km/j</div>
                       <div>Mesin: {vehicle.ignition ? 'ON' : 'OFF'}</div>
