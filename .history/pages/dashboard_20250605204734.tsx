@@ -440,7 +440,7 @@ const DashboardPage = () => {
                           <Bell className="w-5 h-5" />
                         )}
                         {alerts.length > 0 && !alertsLoading && (
-                          <span className="absolute -top-1 -right-1 w-5 h-5 text-xs flex items-center justify-center bg-red-500 text-white rounded-full">
+                          <span className="absolute -top-1 -right-1 w-5 h-5 text-xs flex items-center justify-center bg-red-500 text-blac rounded-full">
                             {alerts.length}
                           </span>
                         )}
