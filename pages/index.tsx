@@ -114,20 +114,17 @@ const LandingPage = () => {
               </div>
             </div>
             <div className="flex items-center gap-3">
-              <Link href="/demo" passHref>
-                <Button variant="ghost" className="hidden md:inline-flex">
-                  <Zap className="w-4 h-4 mr-2" />
-                  Demo Live
-                </Button>
-              </Link>
+              
               <Link href="/login" passHref>
                 <Button variant="outline">Masuk</Button>
               </Link>
               <Link href="/register" passHref>
                 <Button className="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800">
-                  Mulai Gratis
+                  Mulai Trial Gratis
+                  <ArrowRight className="ml-2 w-5 h-5" />
                 </Button>
               </Link>
+              
             </div>
           </div>
         </div>
@@ -175,15 +172,6 @@ const LandingPage = () => {
                 >
                   Mulai Trial Gratis
                   <ArrowRight className="ml-2 w-5 h-5" />
-                </Button>
-              </Link>
-              <Link href="/demo" passHref>
-                <Button 
-                  variant="outline" 
-                  size="lg" 
-                  className="text-lg px-8 py-4 border-2 hover:bg-slate-50 transition-all duration-300"
-                >
-                  Lihat Demo
                 </Button>
               </Link>
             </div>
@@ -405,7 +393,7 @@ const LandingPage = () => {
               <ul className="space-y-2 text-slate-400">
                 <li><Link href="/features" className="hover:text-white transition-colors">Fitur</Link></li>
                 <li><Link href="/pricing" className="hover:text-white transition-colors">Harga</Link></li>
-                <li><Link href="/demo" className="hover:text-white transition-colors">Demo</Link></li>
+                
                 <li><Link href="/api" className="hover:text-white transition-colors">API</Link></li>
               </ul>
             </div>

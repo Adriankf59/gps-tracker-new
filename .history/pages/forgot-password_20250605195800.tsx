@@ -85,29 +85,22 @@ const ForgotPasswordPage = () => {
       const result = await response.json();
       
       if (response.ok && result.success) {
-        console.log("✅ OTP request successful for:", email);
+        console.log("OTP request successful for:", email);
         setStep("otp");
         setCountdown(60); // Start 60-second countdown for resend
-        toast.success('🔐 Kode OTP telah dikirim ke email Anda');
-        
-        // Show messageId in development mode
-        if (result.messageId && process.env.NODE_ENV === 'development') {
-          console.log("📧 Email Message ID:", result.messageId);
-        }
+        toast.success('Kode OTP telah dikirim ke email Anda');
       } else {
         // Handle different error types
         if (result.error === 'RATE_LIMIT_EXCEEDED') {
-          toast.error('🕐 Terlalu banyak percobaan. Coba lagi dalam 1 jam.');
+          toast.error('Terlalu banyak percobaan. Coba lagi dalam 1 jam.');
         } else if (result.error === 'INVALID_EMAIL') {
-          toast.error('📧 Format email tidak valid');
-        } else if (result.error === 'EMAIL_SEND_FAILED') {
-          toast.error('📮 Gagal mengirim email. Silakan coba lagi atau hubungi admin.');
+          toast.error('Format email tidak valid');
         } else {
           toast.error(result.message || 'Gagal mengirim email reset. Silakan coba lagi.');
         }
       }
     } catch (error) {
-      console.error('❌ Forgot password error:', error);
+      console.error('Forgot password error:', error);
       toast.error('⚠️ Gagal mengirim email. Periksa koneksi internet Anda.');
     } finally {
       setLoading(false);
@@ -136,21 +129,12 @@ const ForgotPasswordPage = () => {
       
       if (response.ok && result.success) {
         setCountdown(60); // Reset countdown
-        toast.success('🔐 Kode OTP baru telah dikirim ke email Anda');
-        
-        // Show messageId in development mode
-        if (result.messageId && process.env.NODE_ENV === 'development') {
-          console.log("📧 Resend Email Message ID:", result.messageId);
-        }
+        toast.success('🔐 Kode OTP baru telah dikirim');
       } else {
-        if (result.error === 'RATE_LIMIT_EXCEEDED') {
-          toast.error('🕐 Terlalu banyak percobaan. Coba lagi dalam 1 jam.');
-        } else {
-          toast.error(result.message || 'Gagal mengirim ulang OTP');
-        }
+        toast.error(result.message || 'Gagal mengirim ulang OTP');
       }
     } catch (error) {
-      console.error('❌ Resend OTP error:', error);
+      console.error('Resend OTP error:', error);
       toast.error('Gagal mengirim ulang OTP. Silakan coba lagi.');
     } finally {
       setResendLoading(false);
@@ -163,13 +147,13 @@ const ForgotPasswordPage = () => {
     
     // Validate password match
     if (password !== confirmPassword) {
-      toast.error('❌ Password dan konfirmasi password tidak sama');
+      toast.error('Password dan konfirmasi password tidak sama');
       return;
     }
     
     // Validate password strength
     if (passwordStrength === 'weak') {
-      toast.error('🔒 Password terlalu lemah. Minimal 6 karakter dengan huruf dan angka.');
+      toast.error('Password terlalu lemah. Minimal 6 karakter dengan huruf dan angka.');
       return;
     }
     
@@ -192,25 +176,21 @@ const ForgotPasswordPage = () => {
       const result = await response.json();
       
       if (response.ok && result.success) {
-        console.log("✅ Password reset successful for:", email);
+        console.log("Password reset successful for:", email);
         setStep("success");
-        toast.success('🎉 Password Anda telah berhasil direset!');
+        toast.success('Password Anda telah berhasil direset');
       } else {
         // Handle different error types
         if (result.error === 'INVALID_OTP') {
-          toast.error('🔐 Kode OTP tidak valid atau sudah kedaluwarsa');
+          toast.error('Kode OTP tidak valid atau sudah kedaluwarsa');
         } else if (result.error === 'WEAK_PASSWORD') {
-          toast.error('🔒 Password terlalu lemah. Minimal 6 karakter dengan huruf dan angka.');
-        } else if (result.error === 'PASSWORD_UPDATE_FAILED') {
-          toast.error('💾 Gagal memperbarui password di database. Silakan coba lagi.');
-        } else if (result.error === 'VALIDATION_ERROR') {
-          toast.error('📝 Data tidak lengkap. Pastikan semua field terisi.');
+          toast.error('Password terlalu lemah. Minimal 6 karakter dengan huruf dan angka.');
         } else {
           toast.error(result.message || 'Gagal mereset password. Silakan coba lagi.');
         }
       }
     } catch (error) {
-      console.error('❌ Reset password error:', error);
+      console.error('Reset password error:', error);
       toast.error('⚠️ Gagal mereset password. Periksa koneksi internet Anda.');
     } finally {
       setLoading(false);
@@ -506,8 +486,7 @@ const ForgotPasswordPage = () => {
             <div>
               <h4 className="text-sm font-medium text-blue-800 mb-1">Reset Password Aman dengan OTP</h4>
               <p className="text-xs text-blue-600 leading-relaxed">
-                Sistem kami menggunakan verifikasi OTP melalui email untuk memastikan keamanan reset password Anda. 
-                Kode OTP berlaku selama <strong>10 menit</strong> dan otomatis terhapus setelah berhasil digunakan.
+                Sistem kami menggunakan verifikasi OTP melalui email untuk memastikan keamanan reset password Anda. Kode OTP berlaku selama 10 menit.
               </p>
             </div>
           </div>
