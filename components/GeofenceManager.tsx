@@ -99,7 +99,8 @@ const MAP_ZOOM_LEVELS = {
 } as const;
 
 // 🔧 Enhanced utility functions
-const ensureArray = <T>(value: any): T[] => {
+// Avoid JSX ambiguity by using a trailing comma in the generic
+const ensureArray = <T,>(value: any): T[] => {
   if (Array.isArray(value)) return value;
   if (value?.data && Array.isArray(value.data)) return value.data;
   return [];

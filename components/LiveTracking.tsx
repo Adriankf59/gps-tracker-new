@@ -195,7 +195,8 @@ const fetcher = async (url: string) => {
 };
 
 // Safe array utility
-const ensureArray = <T>(value: any): T[] => {
+// Include trailing comma to disambiguate from JSX
+const ensureArray = <T,>(value: any): T[] => {
   if (Array.isArray(value)) return value;
   if (value && typeof value === 'object' && value.data) {
     return Array.isArray(value.data) ? value.data : [];
