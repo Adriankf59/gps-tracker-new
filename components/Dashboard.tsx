@@ -222,22 +222,26 @@ const getRelativeTime = (date: Date): string => {
 
 // ===== CUSTOM HOOKS =====
 const useUser = () => {
-  return useMemo(() => {
-    if (typeof window === 'undefined') return { userData: null, userId: undefined };
-    
-    const userDataFromStorage = sessionStorage.getItem('user');
-    if (!userDataFromStorage) return { userData: null, userId: undefined };
-    
+  const [userData, setUserData] = useState<UserData | null>(null);
+  const [userId, setUserId] = useState<string | undefined>(undefined);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const stored = sessionStorage.getItem('user');
+    if (!stored) return;
+
     try {
-      const parsedUser: UserData = JSON.parse(userDataFromStorage);
-      return {
-        userData: parsedUser,
-        userId: parsedUser.id || parsedUser.user_id
-      };
+      const parsed: UserData = JSON.parse(stored);
+      setUserData(parsed);
+      setUserId(parsed.id || parsed.user_id);
     } catch {
-      return { userData: null, userId: undefined };
+      setUserData(null);
+      setUserId(undefined);
     }
   }, []);
+
+  return { userData, userId };
 };
 
 const useVehicles = (userId?: string) => {
