@@ -72,6 +72,8 @@ const DashboardPage = () => {
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [alertsLoading, setAlertsLoading] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [profile, setProfile] = useState<User | null>(null);
+  const [profileLoading, setProfileLoading] = useState(false);
 
   // Animation and mounting setup
   useEffect(() => {
@@ -142,6 +144,24 @@ const DashboardPage = () => {
       }
     } finally {
       setAlertsLoading(false);
+    }
+  }, []);
+
+  // Fetch user profile after login
+  const fetchProfile = useCallback(async (id: string) => {
+    setProfileLoading(true);
+    try {
+      const response = await fetch(`/api/user-profile?user_id=${id}`);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch profile: ${response.status}`);
+      }
+      const result = await response.json();
+      setProfile(result.data || result);
+    } catch (error) {
+      console.error('Failed to fetch profile:', error);
+      setProfile(null);
+    } finally {
+      setProfileLoading(false);
     }
   }, []);
 
@@ -216,6 +236,13 @@ const DashboardPage = () => {
 
     return () => clearInterval(interval);
   }, [user, fetchAlerts]);
+
+  // Fetch profile when user is available
+  useEffect(() => {
+    if (user && (user.id || user.user_id)) {
+      fetchProfile(user.id || user.user_id as string);
+    }
+  }, [user, fetchProfile]);
 
   // Enhanced logout dengan comprehensive cleanup
   const handleLogout = useCallback(async () => {
@@ -535,6 +562,18 @@ const DashboardPage = () => {
                             <div className="flex items-center gap-1 text-xs text-slate-400">
                               <Clock className="w-3 h-3" />
                               Last login: {formatLastActivity(user.login_time)}
+                            </div>
+                          )}
+                          {profileLoading && (
+                            <div className="flex items-center gap-1 text-xs text-slate-400">
+                              <Loader2 className="w-3 h-3 animate-spin" />
+                              Loading profile...
+                            </div>
+                          )}
+                          {profile && profile.phone_number && (
+                            <div className="flex items-center gap-1 text-xs text-slate-400">
+                              <User className="w-3 h-3" />
+                              {profile.phone_number}
                             </div>
                           )}
                         </div>
