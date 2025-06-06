@@ -12,51 +12,61 @@ export default async function handler(
   }
 
   try {
-    const { user_id } = req.query;
-    console.log('Fetching vehicle data from external API for user:', user_id);
-    
-    // If no user_id provided, return empty data
-    if (!user_id) {
-      return res.status(400).json({ error: 'User ID is required' });
+    const { user_id, gps_ids } = req.query;
+    console.log('Fetching vehicle data for', { user_id, gps_ids });
+
+    if (!user_id && !gps_ids) {
+      const qs = new URLSearchParams(req.query as any).toString();
+      const url = `http://ec2-13-229-83-7.ap-southeast-1.compute.amazonaws.com:8055/items/vehicle_datas?${qs}`;
+      const proxyResp = await fetch(url);
+      const text = await proxyResp.text();
+      return res.status(proxyResp.status).send(text);
     }
 
     // 1. First, get the user's vehicles to get their gps_ids
     console.log('Getting vehicles for user:', user_id);
-    const vehiclesUrl = `http://ec2-13-229-83-7.ap-southeast-1.compute.amazonaws.com:8055/items/vehicle?filter[user_id][_eq]=${user_id}`;
-    
-    const vehiclesResponse = await fetch(vehiclesUrl, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json'
+    let targetGpsIds: string[] = [];
+
+    if (gps_ids) {
+      targetGpsIds = String(gps_ids)
+        .split(',')
+        .map(id => id.trim())
+        .filter(Boolean);
+    } else if (user_id) {
+      const vehiclesUrl = `http://ec2-13-229-83-7.ap-southeast-1.compute.amazonaws.com:8055/items/vehicle?filter[user_id][_eq]=${user_id}`;
+
+      const vehiclesResponse = await fetch(vehiclesUrl, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        }
+      });
+
+      if (!vehiclesResponse.ok) {
+        const errorText = await vehiclesResponse.text();
+        console.error('External vehicles API error:', errorText);
+        throw new Error(`Failed to fetch user vehicles: ${vehiclesResponse.status}`);
       }
-    });
-    
-    if (!vehiclesResponse.ok) {
-      const errorText = await vehiclesResponse.text();
-      console.error('External vehicles API error:', errorText);
-      throw new Error(`Failed to fetch user vehicles: ${vehiclesResponse.status}`);
+
+      const vehiclesData = await vehiclesResponse.json();
+      const userVehicles = vehiclesData.data || [];
+
+      console.log(`Found ${userVehicles.length} vehicles for user ${user_id}`);
+
+      if (userVehicles.length === 0) {
+        return res.status(200).json({ data: [] });
+      }
+
+      targetGpsIds = userVehicles
+        .map((vehicle: any) => vehicle.gps_id)
+        .filter((gpsId: any) => gpsId !== null && gpsId !== undefined && gpsId !== '');
+
+      console.log('User GPS IDs:', targetGpsIds);
     }
-    
-    const vehiclesData = await vehiclesResponse.json();
-    const userVehicles = vehiclesData.data || [];
-    
-    console.log(`Found ${userVehicles.length} vehicles for user ${user_id}`);
-    
-    if (userVehicles.length === 0) {
-      // If user has no vehicles, return empty data
-      return res.status(200).json({ data: [] });
-    }
-    
-    // 2. Get all gps_ids from user's vehicles
-    const userGpsIds = userVehicles
-      .map((vehicle: any) => vehicle.gps_id)
-      .filter((gpsId: any) => gpsId !== null && gpsId !== undefined && gpsId !== '');
-    
-    console.log('User GPS IDs:', userGpsIds);
-    
-    if (userGpsIds.length === 0) {
-      console.log('No GPS IDs found for user vehicles');
+
+    if (targetGpsIds.length === 0) {
+      console.log('No GPS IDs specified');
       return res.status(200).json({ data: [] });
     }
     
@@ -83,12 +93,12 @@ export default async function handler(
     const allRecords = allData.data || [];
     console.log('All vehicle_datas received:', allRecords.length, 'records');
     
-    // 4. Filter records that belong to the user's vehicles by matching gps_id
+    // 4. Filter records that match the requested GPS IDs
     const filteredData = allRecords.filter((record: any) => {
-      return userGpsIds.includes(record.gps_id);
+      return targetGpsIds.includes(record.gps_id);
     });
     
-    console.log('Filtered vehicle_datas for user vehicles:', filteredData.length, 'records');
+    console.log('Filtered vehicle_datas for selected vehicles:', filteredData.length, 'records');
     
     // 5. Return data in the same format as the external API
     return res.status(200).json({

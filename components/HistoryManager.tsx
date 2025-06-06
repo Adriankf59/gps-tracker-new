@@ -60,9 +60,9 @@ interface ProcessedVehicleForMap {
 }
 
 // API Configuration
-const API_BASE_URL = 'http://ec2-13-229-83-7.ap-southeast-1.compute.amazonaws.com:8055/items';
-const VEHICLE_ENDPOINT = `${API_BASE_URL}/vehicle`;
-const VEHICLE_DATA_ENDPOINT = `${API_BASE_URL}/vehicle_datas`;
+const API_BASE_URL = '/api';
+const VEHICLE_ENDPOINT = `${API_BASE_URL}/vehicles`;
+const VEHICLE_DATA_ENDPOINT = `${API_BASE_URL}/vehicle-data`;
 
 // 🔧 Optimized SWR Configuration
 const swrConfig = {
@@ -236,7 +236,7 @@ export function HistoryManager() {
     isLoading: vehiclesLoading,
     mutate: mutateVehicles
   } = useSWR(
-    userId ? `${VEHICLE_ENDPOINT}?filter[user_id][_eq]=${userId}&limit=-1` : null,
+    userId ? `${VEHICLE_ENDPOINT}?user_id=${userId}&limit=-1` : null,
     fetcher,
     {
       ...swrConfig,
