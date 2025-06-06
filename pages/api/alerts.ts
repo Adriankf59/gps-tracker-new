@@ -52,8 +52,8 @@ export default async function handler(
     console.log(`📊 Fetching alerts with limit: ${alertLimit}`);
 
     // Fetch data dari Directus API
-    const directusUrl = 'http://ec2-13-229-83-7.ap-southeast-1.compute.amazonaws.com:8055';
-    const response = await fetch(`${directusUrl}/items/alerts?limit=-1&sort=-alert_id`, {
+    const { API_BASE_URL } = await import('../../api/file');
+    const response = await fetch(`${API_BASE_URL}/items/alerts?limit=-1&sort=-alert_id`, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',

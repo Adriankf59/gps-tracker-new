@@ -22,7 +22,8 @@ export default async function handler(
 
     // 1. First, get the user's vehicles to get their gps_ids
     console.log('Getting vehicles for user:', user_id);
-    const vehiclesUrl = `http://ec2-13-229-83-7.ap-southeast-1.compute.amazonaws.com:8055/items/vehicle?filter[user_id][_eq]=${user_id}`;
+    const { API_BASE_URL } = await import('../../api/file');
+    const vehiclesUrl = `${API_BASE_URL}/items/vehicle?filter[user_id][_eq]=${user_id}`;
     
     const vehiclesResponse = await fetch(vehiclesUrl, {
       method: 'GET',
@@ -61,7 +62,7 @@ export default async function handler(
     }
     
     // 3. Fetch all vehicle_datas with the exact endpoint specified
-    const vehicleDataUrl = 'http://ec2-13-229-83-7.ap-southeast-1.compute.amazonaws.com:8055/items/vehicle_datas?limit=-1';
+    const vehicleDataUrl = `${API_BASE_URL}/items/vehicle_datas?limit=-1`;
     
     const response = await fetch(vehicleDataUrl, {
       method: 'GET',

@@ -22,7 +22,8 @@ async function handleGetVehicles(req: NextApiRequest, res: NextApiResponse) {
     const { user_id } = req.query;
     console.log('Fetching vehicles data for user_id:', user_id);
     
-    let url = 'http://ec2-13-229-83-7.ap-southeast-1.compute.amazonaws.com:8055/items/vehicle';
+    const { API_BASE_URL } = await import('../../api/file');
+    let url = `${API_BASE_URL}/items/vehicle`;
     
     // Add filter if user_id is provided
     if (user_id) {
@@ -78,8 +79,9 @@ async function handleCreateVehicle(req: NextApiRequest, res: NextApiResponse) {
     }
     
     // Create vehicle via external API
+    const { API_BASE_URL } = await import('../../api/file');
     const response = await fetch(
-      'http://ec2-13-229-83-7.ap-southeast-1.compute.amazonaws.com:8055/items/vehicle',
+      `${API_BASE_URL}/items/vehicle`,
       {
         method: 'POST',
         headers: {

@@ -3,7 +3,8 @@ import { NextResponse } from 'next/server';
 
 export async function GET() {
   try {
-    const response = await fetch('http://ec2-13-229-83-7.ap-southeast-1.compute.amazonaws.com:8055/items/users');
+    const { API_BASE_URL } = await import('../../../api/file');
+    const response = await fetch(`${API_BASE_URL}/items/users`);
     
     if (!response.ok) {
       throw new Error('Failed to fetch users');

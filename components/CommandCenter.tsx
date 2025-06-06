@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { API_BASE_URL } from "../api/file";
 import { toast } from "sonner";
 import { 
   Command as CommandIcon, 
@@ -171,7 +172,7 @@ export function CommandCenter() {
     setVehicleError(null);
     
     try {
-      const response = await fetch("http://ec2-13-229-83-7.ap-southeast-1.compute.amazonaws.com:8055/items/vehicle");
+      const response = await fetch(`${API_BASE_URL}/items/vehicle`);
       
       console.log('📡 Vehicle fetch response:', response.status, response.statusText);
       
@@ -253,7 +254,7 @@ export function CommandCenter() {
   const fetchCommandHistory = async () => {
     try {
       console.log('📜 Fetching command history...');
-      const response = await fetch("http://ec2-13-229-83-7.ap-southeast-1.compute.amazonaws.com:8055/items/commands?sort=-date_created");
+      const response = await fetch(`${API_BASE_URL}/items/commands?sort=-date_created`);
       
       if (!response.ok) {
         console.warn('⚠️ Failed to fetch command history, using sample data');
@@ -473,7 +474,7 @@ export function CommandCenter() {
       console.log('📤 Recording command in history:', commandData);
       
       // Send command to command history API
-      const historyResponse = await fetch('http://ec2-13-229-83-7.ap-southeast-1.compute.amazonaws.com:8055/items/commands', {
+      const historyResponse = await fetch(`${API_BASE_URL}/items/commands`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -496,7 +497,7 @@ export function CommandCenter() {
       console.log(`📤 Updating vehicle ${selectedVehicle} relay status to ${newRelayStatus}`);
       
       // Update the vehicle record with the new relay status
-      const vehicleUpdateResponse = await fetch(`http://ec2-13-229-83-7.ap-southeast-1.compute.amazonaws.com:8055/items/vehicle/${selectedVehicle}`, {
+      const vehicleUpdateResponse = await fetch(`${API_BASE_URL}/items/vehicle/${selectedVehicle}`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -517,7 +518,7 @@ export function CommandCenter() {
       const historyResult = await historyResponse.json();
       if (historyResult && historyResult.data && historyResult.data.id) {
         const commandId = historyResult.data.id;
-        const updateResponse = await fetch(`http://ec2-13-229-83-7.ap-southeast-1.compute.amazonaws.com:8055/items/commands/${commandId}`, {
+        const updateResponse = await fetch(`${API_BASE_URL}/items/commands/${commandId}`, {
           method: 'PATCH',
           headers: {
             'Content-Type': 'application/json',

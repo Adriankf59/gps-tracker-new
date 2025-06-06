@@ -60,9 +60,9 @@ interface ProcessedVehicleForMap {
 }
 
 // API Configuration
-const API_BASE_URL = 'http://ec2-13-229-83-7.ap-southeast-1.compute.amazonaws.com:8055/items';
-const VEHICLE_ENDPOINT = `${API_BASE_URL}/vehicle`;
-const VEHICLE_DATA_ENDPOINT = `${API_BASE_URL}/vehicle_datas`;
+import { API_BASE_URL } from '../api/file';
+const VEHICLE_ENDPOINT = `${API_BASE_URL}/items/vehicle`;
+const VEHICLE_DATA_ENDPOINT = `${API_BASE_URL}/items/vehicle_datas`;
 
 // 🔧 Optimized SWR Configuration
 const swrConfig = {

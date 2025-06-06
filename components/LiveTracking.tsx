@@ -26,6 +26,7 @@ import {
 import dynamic from 'next/dynamic';
 import { toast } from 'sonner';
 import useSWR from 'swr';
+import { API_BASE_URL } from '../api/file';
 
 const MapComponent = dynamic(() => import('./MapComponent').catch(() => ({ default: () => <div>Map not available</div> })), {
   ssr: false,
@@ -129,7 +130,6 @@ interface VehiclePositionHistory {
 }
 
 // API Configuration
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://ec2-13-229-83-7.ap-southeast-1.compute.amazonaws.com:8055';
 const GEOFENCE_API_BASE_URL = `${API_BASE_URL}/items/geofence`;
 const VEHICLE_API_ENDPOINT_BASE = `${API_BASE_URL}/items/vehicle`;
 const VEHICLE_DATA_API_ENDPOINT_BASE = `${API_BASE_URL}/items/vehicle_datas`;
