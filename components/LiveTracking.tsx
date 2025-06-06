@@ -129,11 +129,11 @@ interface VehiclePositionHistory {
 }
 
 // API Configuration
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://ec2-13-229-83-7.ap-southeast-1.compute.amazonaws.com:8055';
-const GEOFENCE_API_BASE_URL = `${API_BASE_URL}/items/geofence`;
-const VEHICLE_API_ENDPOINT_BASE = `${API_BASE_URL}/items/vehicle`;
-const VEHICLE_DATA_API_ENDPOINT_BASE = `${API_BASE_URL}/items/vehicle_datas`;
-const ALERTS_API_ENDPOINT = `${API_BASE_URL}/items/alerts`; // NEW: Alert endpoint
+const API_BASE_URL = '/api';
+const GEOFENCE_API_BASE_URL = `${API_BASE_URL}/geofence`;
+const VEHICLE_API_ENDPOINT_BASE = `${API_BASE_URL}/vehicles`;
+const VEHICLE_DATA_API_ENDPOINT_BASE = `${API_BASE_URL}/vehicle-data`;
+const ALERTS_API_ENDPOINT = `${API_BASE_URL}/alerts`;
 
 // Optimized SWR configuration
 const swrConfig = {
@@ -382,7 +382,7 @@ export function LiveTracking() {
     isLoading: vehiclesLoading,
     mutate: mutateVehicles
   } = useSWR<Vehicle[]>(
-    userId ? `${VEHICLE_API_ENDPOINT_BASE}?filter[user_id][_eq]=${userId}&limit=-1` : null,
+    userId ? `${VEHICLE_API_ENDPOINT_BASE}?user_id=${userId}&limit=-1` : null,
     fetcher,
     {
       ...swrConfig,
@@ -406,7 +406,7 @@ export function LiveTracking() {
     isLoading: geofencesLoading,
     mutate: mutateGeofences
   } = useSWR<ProjectGeofence[]>(
-    userId ? `${GEOFENCE_API_BASE_URL}?filter[user_id][_eq]=${userId}&limit=-1&sort=-date_created` : null,
+    userId ? `${GEOFENCE_API_BASE_URL}?user_id=${userId}&limit=-1&sort=-date_created` : null,
     fetcher,
     {
       ...swrConfig,

@@ -258,7 +258,7 @@ export class GeofenceDetector {
 }
 
 // --- Fungsi untuk menyimpan event ke API ---
-const GEOFENCE_EVENTS_API_ENDPOINT = 'http://ec2-13-229-83-7.ap-southeast-1.compute.amazonaws.com:8055/items/geofence_events';
+const GEOFENCE_EVENTS_API_ENDPOINT = '/api/geofence-events';
 
 export async function saveGeofenceEventToApi(event: GeofenceEvent): Promise<boolean> {
   const payload: ApiGeofenceEventPayload = {

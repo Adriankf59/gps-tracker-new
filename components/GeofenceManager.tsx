@@ -85,9 +85,9 @@ interface UIState {
 }
 
 // 🔧 Constants with environment support
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://ec2-13-229-83-7.ap-southeast-1.compute.amazonaws.com:8055';
-const GEOFENCE_API_ENDPOINT = `${API_BASE_URL}/items/geofence`;
-const VEHICLE_API_ENDPOINT = `${API_BASE_URL}/items/vehicle`;
+const API_BASE_URL = '/api';
+const GEOFENCE_API_ENDPOINT = `${API_BASE_URL}/geofence`;
+const VEHICLE_API_ENDPOINT = `${API_BASE_URL}/vehicles`;
 
 const DEFAULT_CENTER: [number, number] = [-2.5, 118.0];
 const SEARCH_DEBOUNCE_DELAY = 300;

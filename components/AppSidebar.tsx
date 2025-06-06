@@ -90,7 +90,7 @@ interface MenuItemConfig {
 }
 
 // ===== CONSTANTS =====
-const API_BASE_URL = "http://ec2-13-229-83-7.ap-southeast-1.compute.amazonaws.com:8055";
+const API_BASE_URL = "/api";
 const REFRESH_INTERVAL = 5 * 60 * 1000; // 5 minutes
 const ONLINE_THRESHOLD_MINUTES = 30;
 const ALERT_THRESHOLDS = {
@@ -200,7 +200,7 @@ const useVehicleData = (userId: string | null) => {
   const fetchVehicles = useCallback(async (userId: string): Promise<VehicleData[]> => {
     try {
       const response = await fetch(
-        `${API_BASE_URL}/items/vehicle?filter[user_id][_eq]=${userId}&limit=-1`,
+        `${API_BASE_URL}/vehicles?user_id=${userId}&limit=-1`,
         {
           headers: {
             'Accept': 'application/json',
@@ -221,20 +221,10 @@ const useVehicleData = (userId: string | null) => {
     }
   }, []);
 
-  const fetchVehicleStatus = useCallback(async (vehicles: VehicleData[]): Promise<VehicleStatusData[]> => {
+  const fetchVehicleStatus = useCallback(async (userId: string): Promise<VehicleStatusData[]> => {
     try {
-      if (vehicles.length === 0) return [];
-      
-      // Get all GPS IDs from vehicles
-      const gpsIds = vehicles
-        .map(v => v.gps_device_id || v.gps_id)
-        .filter(id => id && id.trim() !== '')
-        .join(',');
-      
-      if (!gpsIds) return [];
-      
       const response = await fetch(
-        `${API_BASE_URL}/items/vehicle_datas?filter[gps_id][_in]=${gpsIds}&limit=500&sort=-timestamp`,
+        `${API_BASE_URL}/vehicle-data?user_id=${userId}`,
         {
           headers: {
             'Accept': 'application/json',
@@ -294,7 +284,7 @@ const useVehicleData = (userId: string | null) => {
       console.log('📊 Loading sidebar data for user:', userId);
 
       const vehicles = await fetchVehicles(userId);
-      const statusData = await fetchVehicleStatus(vehicles);
+      const statusData = await fetchVehicleStatus(userId);
 
       // Cache the results
       cacheRef.current = {
