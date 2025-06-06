@@ -8,7 +8,7 @@ export interface Alert {
   timestamp: string;
 }
 
-const ALERTS_API_URL = 'http://ec2-13-229-83-7.ap-southeast-1.compute.amazonaws.com:8055/items/alerts';
+const ALERTS_API_URL = '/api/alerts';
 
 export const saveAlert = async (alert: Alert) => {
   try {

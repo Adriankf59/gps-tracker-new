@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { MapPin, Eye, EyeOff, Loader2, Clock, Mail, CheckCircle, AlertCircle, User, Lock, ArrowLeft } from 'lucide-react';
 import { toast } from 'sonner';
+import { v4 as uuidv4 } from 'uuid';
 
 const LoginPage = () => {
   const [email, setEmail] = useState('');
@@ -19,7 +20,7 @@ const LoginPage = () => {
   const [loading, setLoading] = useState(false);
   const [resendLoading, setResendLoading] = useState(false);
   const [countdown, setCountdown] = useState(0);
-  const [tempUser, setTempUser] = useState<any>(null);
+  const [deviceId, setDeviceId] = useState('');
   const [isMounted, setIsMounted] = useState(false);
   const [isVisible, setIsVisible] = useState(false);
   const [emailValid, setEmailValid] = useState<boolean | null>(null);
@@ -29,6 +30,14 @@ const LoginPage = () => {
   // Component mounting and animation setup
   useEffect(() => {
     setIsMounted(true);
+
+    // Retrieve or generate device ID
+    let storedId = localStorage.getItem('deviceId');
+    if (!storedId) {
+      storedId = uuidv4();
+      localStorage.setItem('deviceId', storedId);
+    }
+    setDeviceId(storedId);
     
     // Delay untuk animation
     const animationTimer = setTimeout(() => {
@@ -63,167 +72,78 @@ const LoginPage = () => {
     return () => clearInterval(interval);
   }, [countdown]);
 
-  const sendOTP = async (userId: string, userEmail: string) => {
+
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+
     try {
-      const response = await fetch('/api/auth/generateOTP', {
+      const response = await fetch('/api/device-login', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          email: userEmail,
-          userId: userId,
+          email,
+          password,
+          deviceId,
         }),
       });
 
       const result = await response.json();
 
       if (result.success) {
+        const userData = {
+          ...result.user,
+          login_time: new Date().toISOString(),
+        };
+        sessionStorage.setItem('user', JSON.stringify(userData));
+        toast.success('🎉 Login berhasil!');
+        setTimeout(() => {
+          router.push('/dashboard');
+        }, 100);
+      } else if (result.otpRequired) {
         toast.success('🔐 Kode OTP telah dikirim ke email Anda');
-        return true;
+        setShowOtpStep(true);
+        setCountdown(60);
       } else {
-        toast.error(result.message || 'Gagal mengirim OTP');
-        throw new Error(result.message);
-      }
-    } catch (error) {
-      console.error('Error sending OTP:', error);
-      toast.error('Gagal mengirim OTP. Silakan coba lagi.');
-      throw error;
-    }
-  };
-
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    
-    try {
-      const response = await fetch('/api/login', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          email: email,
-          password: password,
-        })
-      });
-      
-      const result = await response.json();
-      
-      if (response.ok) {
-        console.log('👤 User login response:', result.user);
-        
-        // Store user data for OTP verification
-        setTempUser(result.user);
-        
-        // Get userId with proper field mapping
-        const userId = result.user.users_id || result.user.user_id || result.user.id;
-        console.log('🔑 Using userId for OTP:', userId);
-        
-        if (!userId) {
-          console.error('❌ No valid user ID found in response:', result.user);
-          toast.error('User ID tidak ditemukan. Silakan hubungi administrator.');
-          setLoading(false);
-          return;
-        }
-        
-        // Send real OTP to user's email
-        try {
-          await sendOTP(userId, email);
-          
-          // Show OTP step only after successful email sending
-          setShowOtpStep(true);
-          setCountdown(60); // Start 60-second countdown for resend
-          
-        } catch (otpError) {
-          // If OTP sending fails, don't proceed to OTP step
-          console.error('OTP sending failed:', otpError);
-          // Error toast already shown in sendOTP function
-        }
-        
-      } else {
-        // Handle login errors
-        if (result.error === 'INVALID_CREDENTIALS') {
-          toast.error('📧 Email atau password tidak valid');
-        } else if (result.error === 'ACCOUNT_LOCKED') {
-          toast.error('🔒 Akun Anda dikunci karena terlalu banyak percobaan login yang gagal');
-        } else if (result.error === 'RATE_LIMIT_EXCEEDED') {
-          toast.error('🕐 Terlalu banyak percobaan login. Coba lagi dalam 15 menit.');
-        } else {
-          toast.error(result.message || 'Login gagal');
-        }
+        toast.error(result.message || 'Login gagal');
       }
     } catch (error) {
       console.error('Login error:', error);
       toast.error('⚠️ Login gagal. Periksa koneksi internet Anda.');
     }
-    
+
     setLoading(false);
   };
 
   const handleOtpVerification = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    
+
     try {
-      // Get userId with proper field mapping from tempUser
-      const userId = tempUser.users_id || tempUser.user_id || tempUser.id;
-      
-      if (!userId) {
-        console.error('❌ No valid user ID found in tempUser:', tempUser);
-        toast.error('User ID tidak ditemukan. Silakan login ulang.');
-        setShowOtpStep(false);
-        setLoading(false);
-        return;
-      }
-      
-      console.log('🔐 Verifying OTP for userId:', userId);
-      
-      const response = await fetch('/api/auth/verifyOTP', {
+      const response = await fetch('/api/device-login', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          email: email,
-          otp: otp,
-          userId: userId,
+          email,
+          password,
+          deviceId,
+          otp,
         }),
       });
 
       const result = await response.json();
 
       if (result.success) {
-        // Ensure user data has consistent properties with all possible field names
         const userData = {
-          ...tempUser,
-          // Ensure all ID variants exist for maximum compatibility
-          id: userId,
-          user_id: userId,
-          users_id: userId,
-          // Add timestamp for session tracking
+          ...result.user,
           login_time: new Date().toISOString(),
-          // Ensure name fields are consistent
-          full_name: tempUser.name || tempUser.full_name,
-          name: tempUser.name || tempUser.full_name,
-          username: tempUser.nickname || tempUser.username,
-          nickname: tempUser.nickname || tempUser.username,
         };
-        
-        console.log('💾 Storing user data in session:', {
-          id: userData.id,
-          user_id: userData.user_id,
-          users_id: userData.users_id,
-          email: userData.email,
-          name: userData.name
-        });
-        
-        // Store enhanced user data in sessionStorage
         sessionStorage.setItem('user', JSON.stringify(userData));
-        
         toast.success('🎉 Login berhasil!');
-        
-        // Add small delay to ensure data is stored
         setTimeout(() => {
           router.push('/dashboard');
         }, 100);
@@ -234,33 +154,40 @@ const LoginPage = () => {
       console.error('OTP verification error:', error);
       toast.error('Verifikasi OTP gagal. Silakan coba lagi.');
     }
-    
+
     setLoading(false);
   };
 
   const handleResendOtp = async () => {
     if (countdown > 0) return;
-    
+
     setResendLoading(true);
-    
+
     try {
-      // Get userId with proper field mapping
-      const userId = tempUser.users_id || tempUser.user_id || tempUser.id;
-      
-      if (!userId) {
-        console.error('❌ No valid user ID found for resend:', tempUser);
-        toast.error('User ID tidak ditemukan. Silakan login ulang.');
-        setShowOtpStep(false);
-        setResendLoading(false);
-        return;
+      const response = await fetch('/api/device-login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email,
+          password,
+          deviceId,
+        }),
+      });
+
+      const result = await response.json();
+      if (result.otpRequired) {
+        toast.success('🔐 Kode OTP telah dikirim ke email Anda');
+        setCountdown(60);
+      } else {
+        toast.error(result.message || 'Gagal mengirim OTP');
       }
-      
-      await sendOTP(userId, email);
-      setCountdown(60); // Reset countdown
     } catch (error) {
-      // Error toast already shown in sendOTP function
+      console.error('Resend OTP error:', error);
+      toast.error('Gagal mengirim OTP. Silakan coba lagi.');
     }
-    
+
     setResendLoading(false);
   };
 
@@ -277,7 +204,6 @@ const LoginPage = () => {
   const resetLoginForm = () => {
     setShowOtpStep(false);
     setOtp('');
-    setTempUser(null);
     setCountdown(0);
   };
 

@@ -108,7 +108,7 @@ interface DashboardStats {
 }
 
 // ===== CONSTANTS =====
-const API_BASE_URL = "http://ec2-13-229-83-7.ap-southeast-1.compute.amazonaws.com:8055";
+const API_BASE_URL = "/api";
 
 const REFRESH_INTERVALS = {
   VEHICLES: 30000,      // 30 seconds
@@ -136,15 +136,19 @@ const fetcher = async (url: string) => {
   return response.json();
 };
 
-const parseFloat_ = (value: string | null | undefined): number => {
-  if (!value || typeof value !== 'string') return 0;
-  const parsed = parseFloat(value);
-  return isNaN(parsed) ? 0 : parsed;
+// Safely parse a numeric string, returning null when the value is invalid
+const parseFloat_ = (value: string | null | undefined): number | null => {
+  if (value === null || value === undefined || value === '') return null;
+  const parsed = parseFloat(String(value));
+  return Number.isFinite(parsed) ? parsed : null;
 };
 
 const getLocationName = (lat: string, lng: string): string => {
   const latitude = parseFloat_(lat);
   const longitude = parseFloat_(lng);
+  if (latitude === null || longitude === null) {
+    return `${lat}, ${lng}`;
+  }
   
   // Bandung area check
   if (latitude >= BANDUNG_BOUNDS.lat.min && latitude <= BANDUNG_BOUNDS.lat.max && 
@@ -218,27 +222,31 @@ const getRelativeTime = (date: Date): string => {
 
 // ===== CUSTOM HOOKS =====
 const useUser = () => {
-  return useMemo(() => {
-    if (typeof window === 'undefined') return { userData: null, userId: undefined };
-    
-    const userDataFromStorage = sessionStorage.getItem('user');
-    if (!userDataFromStorage) return { userData: null, userId: undefined };
-    
+  const [userData, setUserData] = useState<UserData | null>(null);
+  const [userId, setUserId] = useState<string | undefined>(undefined);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const stored = sessionStorage.getItem('user');
+    if (!stored) return;
+
     try {
-      const parsedUser: UserData = JSON.parse(userDataFromStorage);
-      return {
-        userData: parsedUser,
-        userId: parsedUser.id || parsedUser.user_id
-      };
+      const parsed: UserData = JSON.parse(stored);
+      setUserData(parsed);
+      setUserId(parsed.id || parsed.user_id);
     } catch {
-      return { userData: null, userId: undefined };
+      setUserData(null);
+      setUserId(undefined);
     }
   }, []);
+
+  return { userData, userId };
 };
 
 const useVehicles = (userId?: string) => {
   const { data, error, isLoading, mutate } = useSWR(
-    userId ? `${API_BASE_URL}/items/vehicle?filter[user_id][_eq]=${userId}&limit=-1` : null,
+    userId ? `${API_BASE_URL}/vehicles?user_id=${userId}&limit=-1` : null,
     fetcher,
     {
       refreshInterval: REFRESH_INTERVALS.VEHICLES,
@@ -271,7 +279,7 @@ const useVehicleData = (vehicles: Vehicle[]) => {
   }, [vehicles]);
 
   const { data, error, isLoading, mutate } = useSWR(
-    gpsIds ? `${API_BASE_URL}/items/vehicle_datas?filter[gps_id][_in]=${gpsIds}&limit=1000&sort=-timestamp` : null,
+    gpsIds ? `${API_BASE_URL}/vehicle-data?gps_ids=${gpsIds}&limit=1000` : null,
     fetcher,
     {
       refreshInterval: REFRESH_INTERVALS.VEHICLE_DATA,
@@ -296,7 +304,7 @@ const useVehicleData = (vehicles: Vehicle[]) => {
 
 const useGeofences = (userId?: string) => {
   const { data, error, isLoading, mutate } = useSWR(
-    userId ? `${API_BASE_URL}/items/geofence?filter[user_id][_eq]=${userId}` : null,
+    userId ? `${API_BASE_URL}/geofence?user_id=${userId}` : null,
     fetcher,
     {
       refreshInterval: REFRESH_INTERVALS.GEOFENCES,
@@ -410,13 +418,13 @@ export function Dashboard() {
       const status = getVehicleStatus(latestData);
       
       let location = 'Location unknown';
-      let position: [number, number] = [0, 0];
+      let position: [number, number] = [NaN, NaN];
       
       if (latestData?.latitude && latestData?.longitude) {
         location = getLocationName(latestData.latitude, latestData.longitude);
         const lat = parseFloat_(latestData.latitude);
         const lng = parseFloat_(latestData.longitude);
-        if (!isNaN(lat) && !isNaN(lng)) {
+        if (lat !== null && lng !== null) {
           position = [lat, lng];
         }
       }
@@ -445,8 +453,8 @@ export function Dashboard() {
 
   // Filter vehicles for map (only those with valid coordinates)
   const vehiclesForMap = useMemo((): ProcessedVehicle[] => {
-    return processedVehicles.filter(vehicle => 
-      vehicle.position[0] !== 0 && vehicle.position[1] !== 0
+    return processedVehicles.filter(vehicle =>
+      !isNaN(vehicle.position[0]) && !isNaN(vehicle.position[1])
     );
   }, [processedVehicles]);
 
