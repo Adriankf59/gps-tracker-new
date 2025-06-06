@@ -1,5 +1,6 @@
 // pages/api/vehicles/[id].ts
 import type { NextApiRequest, NextApiResponse } from 'next';
+import { DIRECTUS_BASE_URL } from '../config';
 
 export default async function handler(
   req: NextApiRequest,
@@ -33,7 +34,7 @@ async function handleDeleteVehicle(req: NextApiRequest, res: NextApiResponse) {
     
     // Delete vehicle via external API
     const response = await fetch(
-      `http://ec2-13-229-83-7.ap-southeast-1.compute.amazonaws.com:8055/items/vehicle/${id}`,
+      `${DIRECTUS_BASE_URL}/items/vehicle/${id}`,
       {
         method: 'DELETE',
         headers: {
@@ -100,7 +101,7 @@ async function handleGetVehicle(req: NextApiRequest, res: NextApiResponse) {
     }
     
     const response = await fetch(
-      `http://ec2-13-229-83-7.ap-southeast-1.compute.amazonaws.com:8055/items/vehicle/${id}`,
+      `${DIRECTUS_BASE_URL}/items/vehicle/${id}`,
       {
         method: 'GET',
         headers: {
@@ -143,7 +144,7 @@ async function handleUpdateVehicle(req: NextApiRequest, res: NextApiResponse) {
     
     // Update vehicle via external API
     const response = await fetch(
-      `http://ec2-13-229-83-7.ap-southeast-1.compute.amazonaws.com:8055/items/vehicle/${id}`,
+      `${DIRECTUS_BASE_URL}/items/vehicle/${id}`,
       {
         method: 'PATCH',
         headers: {

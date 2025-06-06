@@ -1,5 +1,6 @@
 // pages/api/vehicle-data.ts
 import type { NextApiRequest, NextApiResponse } from 'next';
+import { DIRECTUS_BASE_URL } from './config';
 
 export default async function handler(
   req: NextApiRequest,
@@ -17,7 +18,7 @@ export default async function handler(
 
     if (!user_id && !gps_ids) {
       const qs = new URLSearchParams(req.query as any).toString();
-      const url = `http://ec2-13-229-83-7.ap-southeast-1.compute.amazonaws.com:8055/items/vehicle_datas?${qs}`;
+      const url = `${DIRECTUS_BASE_URL}/items/vehicle_datas?${qs}`;
       const proxyResp = await fetch(url);
       const text = await proxyResp.text();
       return res.status(proxyResp.status).send(text);
@@ -71,7 +72,7 @@ export default async function handler(
     }
     
     // 3. Fetch all vehicle_datas with the exact endpoint specified
-    const vehicleDataUrl = 'http://ec2-13-229-83-7.ap-southeast-1.compute.amazonaws.com:8055/items/vehicle_datas?limit=-1';
+    const vehicleDataUrl = `${DIRECTUS_BASE_URL}/items/vehicle_datas?limit=-1`;
     
     const response = await fetch(vehicleDataUrl, {
       method: 'GET',

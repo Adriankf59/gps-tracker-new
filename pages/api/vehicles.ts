@@ -1,5 +1,6 @@
 // pages/api/vehicles.ts
 import type { NextApiRequest, NextApiResponse } from 'next';
+import { DIRECTUS_BASE_URL } from './config';
 
 export default async function handler(
   req: NextApiRequest,
@@ -22,7 +23,7 @@ async function handleGetVehicles(req: NextApiRequest, res: NextApiResponse) {
     const { user_id } = req.query;
     console.log('Fetching vehicles data for user_id:', user_id);
     
-    let url = 'http://ec2-13-229-83-7.ap-southeast-1.compute.amazonaws.com:8055/items/vehicle';
+    let url = `${DIRECTUS_BASE_URL}/items/vehicle`;
     
     // Add filter if user_id is provided
     if (user_id) {
@@ -79,7 +80,7 @@ async function handleCreateVehicle(req: NextApiRequest, res: NextApiResponse) {
     
     // Create vehicle via external API
     const response = await fetch(
-      'http://ec2-13-229-83-7.ap-southeast-1.compute.amazonaws.com:8055/items/vehicle',
+      `${DIRECTUS_BASE_URL}/items/vehicle`,
       {
         method: 'POST',
         headers: {
