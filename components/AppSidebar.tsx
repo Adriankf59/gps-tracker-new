@@ -90,7 +90,7 @@ interface MenuItemConfig {
 }
 
 // ===== CONSTANTS =====
-const API_BASE_URL = "http://ec2-13-229-83-7.ap-southeast-1.compute.amazonaws.com:8055";
+import { API_BASE_URL } from '../api/file';
 const REFRESH_INTERVAL = 5 * 60 * 1000; // 5 minutes
 const ONLINE_THRESHOLD_MINUTES = 30;
 const ALERT_THRESHOLDS = {
