@@ -1,6 +1,4 @@
-import type { NextConfig } from "next";
-
-const nextConfig: NextConfig = {
+const nextConfig = {
   reactStrictMode: true,
 
   // Lewati pengecekan ESLint saat build
@@ -15,7 +13,7 @@ const nextConfig: NextConfig = {
     "react-leaflet-draw",
   ],
 
-  webpack: (config: any, { isServer }: { isServer: boolean }) => {
+  webpack: (config, { isServer }) => {
     // Hanya jalankan jika tidak pakai Turbopack
     if (!process.env.__NEXT_EXPERIMENTAL_TURBOPACK) {
       config.resolve = config.resolve || {};
