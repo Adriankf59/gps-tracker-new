@@ -265,7 +265,7 @@ const useVehicleData = (userId: string | null) => {
     const cacheAge = cacheRef.current ? now - cacheRef.current.timestamp : Infinity;
     const shouldUseCache = !forceRefresh && cacheRef.current && cacheAge < 60000; // 1 minute cache
 
-    if (shouldUseCache) {
+    if (shouldUseCache && cacheRef.current) {
       const { vehicles, statusData } = cacheRef.current;
       
       const onlineCount = vehicles.filter(vehicle => 
