@@ -485,7 +485,7 @@ export function Dashboard() {
   }, [processedVehicles]);
 
   // Event handlers
-  const handleVehicleClick = useCallback((vehicle: ProcessedVehicle) => {
+  const handleVehicleClick = useCallback((vehicle: MapVehicle) => {
     console.log('Dashboard: Vehicle selected from map:', vehicle.name);
     setSelectedVehicleId(vehicle.id);
   }, []);
