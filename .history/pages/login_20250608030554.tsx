@@ -583,11 +583,11 @@ const LoginPage: React.FC = () => {
                     >
                       {resendLoading && <Loader2 className="w-4 h-4 mr-1 sm:mr-2 animate-spin" />}
                       {countdown > 0 ? (
-                        <>
-                          <Mail className="w-4 h-4 mr-1 sm:mr-2" />
-                          <span className="hidden sm:inline">Kirim Ulang</span>
-                          <span className="sm:hidden">Ulang</span>
-                        </>
+                        <div className="flex items-center gap-1">
+                          <Clock className="w-4 h-4" />
+                          <span className="hidden sm:inline">{formatTime(countdown)}</span>
+                          <span className="sm:hidden">{countdown}s</span>
+                        </div>
                       ) : (
                         <>
                           <Mail className="w-4 h-4 mr-1 sm:mr-2" />
@@ -627,7 +627,18 @@ const LoginPage: React.FC = () => {
           </CardContent>
         </Card>
 
-
+        {/* Security Notice */}
+        <div className="mt-6 bg-blue-50 border border-blue-200 rounded-lg p-4 mx-2 sm:mx-0">
+          <div className="flex items-start gap-3">
+            <CheckCircle className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" />
+            <div>
+              <h4 className="text-sm font-medium text-blue-800 mb-1">Login Aman dengan OTP</h4>
+              <p className="text-xs text-blue-600 leading-relaxed">
+                Sistem kami menggunakan verifikasi 2 langkah untuk melindungi akun Anda dari akses yang tidak sah.
+              </p>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );
