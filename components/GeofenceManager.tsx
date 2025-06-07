@@ -130,6 +130,7 @@ const validateGeofence = (geofence: Geofence | null | undefined): geofence is Ge
             coord.length === 2 &&
             coord.every(c => typeof c === 'number' && isFinite(c))
         )
+      );
     }
     
     return false;
