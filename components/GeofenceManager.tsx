@@ -120,14 +120,16 @@ const validateGeofence = (geofence: Geofence | null | undefined): geofence is Ge
     
     if (geofence.type === 'polygon') {
       const { coordinates } = geofence.definition;
-      const polygon = coordinates?.[0];
-      return !!(polygon &&
-               polygon.length >= 4 &&
-               polygon.every(coord =>
-                 Array.isArray(coord) &&
-                 coord.length === 2 &&
-                 coord.every(c => typeof c === 'number' && isFinite(c))
-               ));
+      const polygonCoords = coordinates?.[0];
+      return !!(
+        polygonCoords &&
+        polygonCoords.length >= 4 &&
+        polygonCoords.every(
+          coord =>
+            Array.isArray(coord) &&
+            coord.length === 2 &&
+            coord.every(c => typeof c === 'number' && isFinite(c))
+        )
     }
     
     return false;
