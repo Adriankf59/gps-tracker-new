@@ -6,8 +6,8 @@ import {
   SidebarTrigger,
 } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/AppSidebar";
-// 🔥 FIXED: Import UniversalMainContent instead of MainContent
-import { UniversalMainContent } from "@/components/MainContent";
+// 🔥 FIXED: Import CleanMainContent instead of MainContent
+import { CleanMainContent } from "@/components/MainContent";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { 
@@ -564,10 +564,10 @@ const DashboardPage = () => {
             </div>
           </header>
 
-          {/* 🔥 FIXED: Main Content Area - menggunakan UniversalMainContent */}
+          {/* Main Content Area */}
           <div className="flex-1 overflow-auto bg-gradient-to-br from-slate-50/50 to-slate-100/50">
             <div className="p-6">
-              <UniversalMainContent 
+              <CleanMainContent 
                 activeView={activeView} 
                 user={user}
                 onViewChange={handleViewChange}
