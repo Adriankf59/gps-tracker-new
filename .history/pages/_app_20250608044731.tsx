@@ -1,4 +1,4 @@
-// pages/_app.tsx - White Background Version
+// pages/_app.tsx - White Background Only, Keep Original Colors
 import 'leaflet/dist/leaflet.css';
 import 'leaflet-draw/dist/leaflet.draw.css';
 import '@/styles/globals.css';
@@ -289,7 +289,7 @@ const HydrationSafeWrapper: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   }, []);
 
-  // Show loading state during hydration - WHITE BACKGROUND
+  // Show loading state during hydration - WHITE BACKGROUND, ORIGINAL COLORS
   if (!isHydrated) {
     return (
       <div 
@@ -365,16 +365,10 @@ export default function App({ Component, pageProps }: AppProps) {
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <link rel="icon" href="/favicon.ico" />
         
-        {/* Prevent browser extension style interference + Force White Background */}
+        {/* Minimal styling - only fix backgrounds, keep all original colors */}
         <style dangerouslySetInnerHTML={{
           __html: `
-            /* Force white background globally */
-            html, body, #__next {
-              background-color: white !important;
-              background-image: none !important;
-            }
-            
-            /* Override any gradient backgrounds */
+            /* Force white background on containers that had gradients */
             .bg-gradient-to-br,
             .bg-gradient-to-bl,
             .bg-gradient-to-tr,
@@ -404,14 +398,6 @@ export default function App({ Component, pageProps }: AppProps) {
             .leaflet-control-container {
               pointer-events: auto !important;
             }
-
-            /* Force white background on main containers */
-            .flex-1.overflow-auto,
-            .p-6,
-            main {
-              background-color: white !important;
-              background-image: none !important;
-            }
           `
         }} />
       </Head>
@@ -419,9 +405,7 @@ export default function App({ Component, pageProps }: AppProps) {
       <AppErrorBoundary>
         <QueryClientProvider client={queryClient}>
           <HydrationSafeWrapper>
-            <div className="min-h-screen bg-white" style={{ backgroundColor: 'white' }}>
-              <Component {...pageProps} />
-            </div>
+            <Component {...pageProps} />
             
             {/* Toast notifications with error filtering */}
             <Toaster 

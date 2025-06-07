@@ -656,17 +656,17 @@ export function Dashboard() {
   ];
 
   return (
-    <div className="space-y-6">
-      {/* Full Screen Map with KPI Overlay */}
-      <div className="relative h-[calc(100vh-8rem)] w-full rounded-lg overflow-hidden bg-gray-100">
-        {/* Background Map */}
+    <div className="h-screen w-screen overflow-hidden">
+      {/* Full Viewport Map with KPI Overlay */}
+      <div className="relative h-full w-full">
+        {/* Background Map - Full Screen */}
         <div className="absolute inset-0 z-0">
           <MapComponent
             vehicles={vehiclesForMap}
             selectedVehicleId={selectedVehicleId}
             onVehicleClick={handleVehicleClick}
             onMapClick={handleMapClick}
-            height="100%"
+            height="100vh"
           />
         </div>
 
@@ -745,129 +745,98 @@ export function Dashboard() {
           </div>
         )}
 
-        {/* Debug: KPI Test Card */}
-        <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-50">
-          <Card className="bg-red-100 border-red-300 shadow-lg">
-            <CardContent className="p-2">
-              <p className="text-xs text-red-700">KPI Debug: {dashboardStats.length} items</p>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
-
-      {/* Bottom Section - Compact Activity and Vehicles */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Recent Activity - Compact with 1 visible + scroll */}
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2 text-base">
-              <Clock className="w-4 h-4 text-blue-600" /> Recent Activity
-              {alertsLoading && (
-                <Loader2 className="w-4 h-4 animate-spin ml-auto" />
-              )}
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="max-h-28 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
-              <div className="space-y-2 pr-2">
-                {recentActivity.length > 0 ? (
-                  recentActivity.map((activity, index) => (
-                    <div key={activity.id} className={`flex items-start gap-2 p-2 rounded hover:bg-slate-50 ${index === 0 ? '' : 'border-t border-slate-100'}`}>
-                      <div className={`w-1.5 h-1.5 rounded-full mt-2 flex-shrink-0 ${
-                        activity.type === 'alert' ? 'bg-red-500' : 
-                        activity.type === 'geofence' ? 'bg-blue-500' : 
-                        'bg-green-500'
-                      }`} />
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="font-medium text-xs text-slate-800 truncate">
+        {/* Bottom Activity Panel - Collapsible */}
+        <div className="absolute bottom-4 left-4 right-4 z-50">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 max-w-4xl mx-auto">
+            {/* Recent Activity - Compact */}
+            <Card className="bg-white/95 backdrop-blur-sm">
+              <CardHeader className="pb-2">
+                <CardTitle className="flex items-center gap-2 text-sm">
+                  <Clock className="w-4 h-4 text-blue-600" /> Recent Activity
+                  {alertsLoading && (
+                    <Loader2 className="w-3 h-3 animate-spin ml-auto" />
+                  )}
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="pt-0">
+                <div className="max-h-20 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
+                  <div className="space-y-1 pr-1">
+                    {recentActivity.length > 0 ? (
+                      recentActivity.slice(0, 2).map((activity, index) => (
+                        <div key={activity.id} className="flex items-center gap-2 p-1 text-xs">
+                          <div className={`w-1 h-1 rounded-full flex-shrink-0 ${
+                            activity.type === 'alert' ? 'bg-red-500' : 
+                            activity.type === 'geofence' ? 'bg-blue-500' : 
+                            'bg-green-500'
+                          }`} />
+                          <span className="font-medium text-slate-800 truncate">
                             {activity.vehicle}
                           </span>
-                          <Badge variant="outline" className="text-xs px-1 py-0">
-                            {activity.type}
-                          </Badge>
+                          <span className="text-slate-400 ml-auto">
+                            {activity.timeDisplay}
+                          </span>
                         </div>
-                        <p className="text-xs text-slate-600 line-clamp-1">{activity.event}</p>
-                        <p className="text-xs text-slate-400">{activity.timeDisplay}</p>
+                      ))
+                    ) : (
+                      <div className="text-center py-2">
+                        <p className="text-slate-500 text-xs">No recent activity</p>
                       </div>
-                    </div>
-                  ))
-                ) : (
-                  <div className="text-center py-4">
-                    <Clock className="w-5 h-5 text-gray-400 mx-auto mb-1" />
-                    <p className="text-slate-500 text-xs">No recent activity</p>
+                    )}
                   </div>
-                )}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+                </div>
+              </CardContent>
+            </Card>
 
-        {/* Online Vehicles - Compact with 1 visible + scroll */}
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2 text-base">
-              <TrendingUp className="w-4 h-4 text-green-600" /> Online Vehicles
-              {vehicleDataLoading && (
-                <Loader2 className="w-4 h-4 animate-spin ml-auto" />
-              )}
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="max-h-28 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
-              <div className="space-y-2 pr-2">
-                {onlineVehicles.length > 0 ? (
-                  processedVehicles.filter(v => v.isOnline).map((vehicle, index) => (
-                    <div
-                      key={vehicle.id}
-                      className={`p-2 border rounded cursor-pointer transition-colors ${
-                        selectedVehicleId === vehicle.id 
-                          ? 'bg-blue-50 border-blue-200' 
-                          : 'hover:bg-slate-50'
-                      } ${index === 0 ? '' : 'border-t border-slate-100'}`}
-                      onClick={() => handleVehicleSelectFromList(vehicle.id)}
-                    >
-                      <div className="flex items-center justify-between mb-1">
-                        <div className="flex items-center gap-2">
-                          <h4 className="font-medium text-xs text-slate-800">{vehicle.name}</h4>
-                          <Badge 
-                            variant={vehicle.status === 'moving' ? 'default' : 'secondary'} 
-                            className={`text-xs px-1 py-0 ${
+            {/* Online Vehicles - Compact */}
+            <Card className="bg-white/95 backdrop-blur-sm">
+              <CardHeader className="pb-2">
+                <CardTitle className="flex items-center gap-2 text-sm">
+                  <TrendingUp className="w-4 h-4 text-green-600" /> Online Vehicles
+                  {vehicleDataLoading && (
+                    <Loader2 className="w-3 h-3 animate-spin ml-auto" />
+                  )}
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="pt-0">
+                <div className="max-h-20 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
+                  <div className="space-y-1 pr-1">
+                    {onlineVehicles.length > 0 ? (
+                      processedVehicles.filter(v => v.isOnline).slice(0, 2).map((vehicle, index) => (
+                        <div
+                          key={vehicle.id}
+                          className={`flex items-center justify-between p-1 rounded cursor-pointer text-xs transition-colors ${
+                            selectedVehicleId === vehicle.id 
+                              ? 'bg-blue-100' 
+                              : 'hover:bg-slate-100'
+                          }`}
+                          onClick={() => handleVehicleSelectFromList(vehicle.id)}
+                        >
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium text-slate-800">{vehicle.name}</span>
+                            <Badge className={`text-xs px-1 py-0 ${
                               vehicle.status === 'moving' ? 'bg-green-100 text-green-700' : 
                               vehicle.status === 'parked' ? 'bg-yellow-100 text-yellow-700' : 
                               'bg-gray-100 text-gray-700'
-                            }`}
-                          >
-                            {vehicle.status}
-                          </Badge>
+                            }`}>
+                              {vehicle.status}
+                            </Badge>
+                          </div>
+                          <span className="text-blue-600 font-medium">
+                            {vehicle.speed} km/h
+                          </span>
                         </div>
-                        <span className="text-xs font-medium text-blue-600">
-                          {vehicle.speed} km/h
-                        </span>
+                      ))
+                    ) : (
+                      <div className="text-center py-2">
+                        <p className="text-slate-500 text-xs">No vehicles online</p>
                       </div>
-                      <p className="text-xs text-slate-600 mb-1 truncate">{vehicle.location}</p>
-                      <div className="flex items-center gap-3 text-xs">
-                        <div className="flex items-center gap-1">
-                          <Fuel className="w-2.5 h-2.5 text-blue-500" />
-                          <span>{(vehicle.fuel ?? 0).toFixed(1)}%</span>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <Zap className="w-2.5 h-2.5 text-green-500" />
-                          <span>{(vehicle.battery ?? 0).toFixed(1)}V</span>
-                        </div>
-                      </div>
-                    </div>
-                  ))
-                ) : (
-                  <div className="text-center py-4">
-                    <TrendingUp className="w-5 h-5 text-gray-400 mx-auto mb-1" />
-                    <p className="text-slate-500 text-xs">No vehicles online</p>
+                    )}
                   </div>
-                )}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
       </div>
     </div>
   );

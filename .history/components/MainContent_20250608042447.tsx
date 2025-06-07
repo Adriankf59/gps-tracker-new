@@ -615,14 +615,11 @@ export const CleanMainContent: React.FC<MainContentProps> = ({
   }, [componentConfig, user, systemStatus, onViewChange, activeView, handleErrorReset]);
 
   return (
-    // Force white background with full coverage - override any parent gradients
-    <div 
-      className={cn(
-        'bg-white min-h-screen w-full transition-all duration-500 ease-out',
-        isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
-      )}
-      style={{ backgroundColor: 'white' }} // Force white via inline style to override gradients
-    >
+    // Simplified - remove duplicate wrappers
+    <div className={cn(
+      'transition-all duration-500 ease-out',
+      isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
+    )}>
       {renderComponent()}
     </div>
   );

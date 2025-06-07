@@ -658,9 +658,9 @@ export function Dashboard() {
   return (
     <div className="space-y-6">
       {/* Full Screen Map with KPI Overlay */}
-      <div className="relative h-[calc(100vh-8rem)] w-full rounded-lg overflow-hidden bg-gray-100">
+      <div className="relative h-[calc(100vh-8rem)] w-full rounded-lg overflow-hidden">
         {/* Background Map */}
-        <div className="absolute inset-0 z-0">
+        <div className="absolute inset-0">
           <MapComponent
             vehicles={vehiclesForMap}
             selectedVehicleId={selectedVehicleId}
@@ -671,9 +671,9 @@ export function Dashboard() {
         </div>
 
         {/* KPI Overlay - Right Side */}
-        <div className="absolute top-4 right-4 z-50 space-y-3 w-64">
+        <div className="absolute top-4 right-4 z-10 space-y-3 w-64">
           {dashboardStats.map((stat, index) => (
-            <Card key={index} className="bg-white/95 backdrop-blur-sm border shadow-lg hover:shadow-xl transition-all duration-300">
+            <Card key={index} className="bg-white/95 backdrop-blur-sm border-0 shadow-lg hover:shadow-xl transition-all duration-300">
               <CardContent className="p-4">
                 <div className="flex items-center justify-between">
                   <div className="flex-1">
@@ -693,14 +693,14 @@ export function Dashboard() {
                           'text-purple-600'
                         }`} />
                       </div>
-                      <span className="text-xs font-medium text-slate-600 truncate">
+                      <span className="text-xs font-medium text-slate-600">
                         {stat.title}
                       </span>
                     </div>
                     <div className="text-lg font-bold text-slate-800">{stat.value}</div>
-                    <p className="text-xs text-slate-500 truncate">{stat.change}</p>
+                    <p className="text-xs text-slate-500">{stat.change}</p>
                   </div>
-                  <div className={`text-2xl font-bold ml-2 ${
+                  <div className={`text-2xl font-bold ${
                     stat.color === 'blue' ? 'text-blue-600' : 
                     stat.color === 'green' ? 'text-green-600' : 
                     stat.color === 'indigo' ? 'text-indigo-600' : 
@@ -733,8 +733,8 @@ export function Dashboard() {
 
         {/* Loading Overlay */}
         {vehicleDataLoading && (
-          <div className="absolute top-4 left-4 z-50">
-            <Card className="bg-white/95 backdrop-blur-sm border shadow-lg">
+          <div className="absolute top-4 left-4 z-10">
+            <Card className="bg-white/95 backdrop-blur-sm border-0 shadow-lg">
               <CardContent className="p-3">
                 <div className="flex items-center gap-2">
                   <Loader2 className="w-4 h-4 animate-spin text-blue-600" />
@@ -744,15 +744,6 @@ export function Dashboard() {
             </Card>
           </div>
         )}
-
-        {/* Debug: KPI Test Card */}
-        <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-50">
-          <Card className="bg-red-100 border-red-300 shadow-lg">
-            <CardContent className="p-2">
-              <p className="text-xs text-red-700">KPI Debug: {dashboardStats.length} items</p>
-            </CardContent>
-          </Card>
-        </div>
       </div>
 
       {/* Bottom Section - Compact Activity and Vehicles */}

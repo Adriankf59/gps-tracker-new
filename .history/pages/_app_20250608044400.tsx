@@ -1,4 +1,4 @@
-// pages/_app.tsx - White Background Version
+// pages/_app.tsx - Integrated dengan struktur existing
 import 'leaflet/dist/leaflet.css';
 import 'leaflet-draw/dist/leaflet.draw.css';
 import '@/styles/globals.css';
@@ -232,7 +232,7 @@ class AppErrorBoundary extends React.Component<
   render() {
     if (this.state.hasError) {
       return (
-        <div className="min-h-screen flex items-center justify-center bg-white">
+        <div className="min-h-screen flex items-center justify-center bg-gray-50">
           <div className="text-center p-8 max-w-md">
             <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-red-100 flex items-center justify-center">
               <svg className="w-8 h-8 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -289,11 +289,11 @@ const HydrationSafeWrapper: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   }, []);
 
-  // Show loading state during hydration - WHITE BACKGROUND
+  // Show loading state during hydration
   if (!isHydrated) {
     return (
       <div 
-        className="min-h-screen flex items-center justify-center bg-white"
+        className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-slate-100"
         suppressHydrationWarning={true}
       >
         <div className="text-center">
@@ -365,28 +365,9 @@ export default function App({ Component, pageProps }: AppProps) {
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <link rel="icon" href="/favicon.ico" />
         
-        {/* Prevent browser extension style interference + Force White Background */}
+        {/* Prevent browser extension style interference */}
         <style dangerouslySetInnerHTML={{
           __html: `
-            /* Force white background globally */
-            html, body, #__next {
-              background-color: white !important;
-              background-image: none !important;
-            }
-            
-            /* Override any gradient backgrounds */
-            .bg-gradient-to-br,
-            .bg-gradient-to-bl,
-            .bg-gradient-to-tr,
-            .bg-gradient-to-tl,
-            .bg-gradient-to-r,
-            .bg-gradient-to-l,
-            .bg-gradient-to-t,
-            .bg-gradient-to-b {
-              background: white !important;
-              background-image: none !important;
-            }
-            
             /* Override browser extension styles */
             [bis_skin_checked] {
               /* Reset any extension modifications */
@@ -404,14 +385,6 @@ export default function App({ Component, pageProps }: AppProps) {
             .leaflet-control-container {
               pointer-events: auto !important;
             }
-
-            /* Force white background on main containers */
-            .flex-1.overflow-auto,
-            .p-6,
-            main {
-              background-color: white !important;
-              background-image: none !important;
-            }
           `
         }} />
       </Head>
@@ -419,9 +392,7 @@ export default function App({ Component, pageProps }: AppProps) {
       <AppErrorBoundary>
         <QueryClientProvider client={queryClient}>
           <HydrationSafeWrapper>
-            <div className="min-h-screen bg-white" style={{ backgroundColor: 'white' }}>
-              <Component {...pageProps} />
-            </div>
+            <Component {...pageProps} />
             
             {/* Toast notifications with error filtering */}
             <Toaster 

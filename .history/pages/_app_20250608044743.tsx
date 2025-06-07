@@ -368,13 +368,14 @@ export default function App({ Component, pageProps }: AppProps) {
         {/* Prevent browser extension style interference + Force White Background */}
         <style dangerouslySetInnerHTML={{
           __html: `
-            /* Force white background globally */
+            /* Force white background globally but preserve text colors */
             html, body, #__next {
               background-color: white !important;
               background-image: none !important;
+              color: inherit; /* Preserve text color */
             }
             
-            /* Override any gradient backgrounds */
+            /* Override any gradient backgrounds but keep text readable */
             .bg-gradient-to-br,
             .bg-gradient-to-bl,
             .bg-gradient-to-tr,
@@ -385,6 +386,7 @@ export default function App({ Component, pageProps }: AppProps) {
             .bg-gradient-to-b {
               background: white !important;
               background-image: none !important;
+              color: inherit !important; /* Keep original text color */
             }
             
             /* Override browser extension styles */
@@ -405,12 +407,46 @@ export default function App({ Component, pageProps }: AppProps) {
               pointer-events: auto !important;
             }
 
-            /* Force white background on main containers */
+            /* Force white background on main containers but preserve text */
             .flex-1.overflow-auto,
             .p-6,
             main {
               background-color: white !important;
               background-image: none !important;
+            }
+            
+            /* Ensure text colors remain readable */
+            .text-slate-800,
+            .text-slate-700,
+            .text-slate-600,
+            .text-slate-500,
+            .text-gray-800,
+            .text-gray-700,
+            .text-gray-600,
+            .text-gray-500,
+            .text-black {
+              color: inherit !important;
+            }
+            
+            /* Ensure icons keep their colors */
+            .text-blue-600,
+            .text-green-600,
+            .text-red-600,
+            .text-purple-600,
+            .text-indigo-600,
+            .text-orange-600,
+            .text-yellow-600 {
+              color: inherit !important;
+            }
+            
+            /* Make sure buttons and interactive elements keep their styling */
+            button, .btn {
+              color: inherit !important;
+            }
+            
+            /* Preserve all text and icon colors */
+            svg, .lucide {
+              color: currentColor !important;
             }
           `
         }} />
