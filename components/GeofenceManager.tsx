@@ -85,9 +85,9 @@ interface UIState {
 }
 
 // 🔧 Constants with environment support
-import { API_BASE_URL } from '../api/file';
-const GEOFENCE_API_ENDPOINT = `${API_BASE_URL}/items/geofence`;
-const VEHICLE_API_ENDPOINT = `${API_BASE_URL}/items/vehicle`;
+// Use internal API routes so that requests go through the Next.js backend
+const GEOFENCE_API_ENDPOINT = '/api/geofences';
+const VEHICLE_API_ENDPOINT = '/api/vehicles';
 
 const DEFAULT_CENTER: [number, number] = [-2.5, 118.0];
 const SEARCH_DEBOUNCE_DELAY = 300;

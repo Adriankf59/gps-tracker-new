@@ -23,12 +23,12 @@ async function handleGetVehicles(req: NextApiRequest, res: NextApiResponse) {
     console.log('Fetching vehicles data for user_id:', user_id);
     
     const { API_BASE_URL } = await import('../../api/file');
-    let url = `${API_BASE_URL}/items/vehicle`;
-    
-    // Add filter if user_id is provided
+    const params = new URLSearchParams();
     if (user_id) {
-      url += `?filter[user_id][_eq]=${user_id}`;
+      params.set('filter[user_id][_eq]', String(user_id));
     }
+    params.set('limit', '-1');
+    const url = `${API_BASE_URL}/items/vehicle?${params.toString()}`;
     
     console.log('Fetching from URL:', url);
     

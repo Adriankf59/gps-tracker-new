@@ -90,7 +90,8 @@ interface MenuItemConfig {
 }
 
 // ===== CONSTANTS =====
-import { API_BASE_URL } from '../api/file';
+// Use the Next.js API routes to avoid mixed-content issues
+// and allow the server to handle communication with Directus
 const REFRESH_INTERVAL = 5 * 60 * 1000; // 5 minutes
 const ONLINE_THRESHOLD_MINUTES = 30;
 const ALERT_THRESHOLDS = {
@@ -199,15 +200,12 @@ const useVehicleData = (userId: string | null) => {
 
   const fetchVehicles = useCallback(async (userId: string): Promise<VehicleData[]> => {
     try {
-      const response = await fetch(
-        `${API_BASE_URL}/items/vehicle?filter[user_id][_eq]=${userId}&limit=-1`,
-        {
-          headers: {
-            'Accept': 'application/json',
-            'Content-Type': 'application/json'
-          }
+      const response = await fetch(`/api/vehicles?user_id=${userId}&limit=-1`, {
+        headers: {
+          Accept: 'application/json',
+          'Content-Type': 'application/json'
         }
-      );
+      });
       
       if (!response.ok) {
         throw new Error(`Failed to fetch vehicles: ${response.status}`);
@@ -221,23 +219,23 @@ const useVehicleData = (userId: string | null) => {
     }
   }, []);
 
-  const fetchVehicleStatus = useCallback(async (vehicles: VehicleData[]): Promise<VehicleStatusData[]> => {
+  const fetchVehicleStatus = useCallback(async (userId: string, vehicles: VehicleData[]): Promise<VehicleStatusData[]> => {
     try {
       if (vehicles.length === 0) return [];
-      
+
       // Get all GPS IDs from vehicles
       const gpsIds = vehicles
         .map(v => v.gps_device_id || v.gps_id)
         .filter(id => id && id.trim() !== '')
         .join(',');
-      
+
       if (!gpsIds) return [];
-      
+
       const response = await fetch(
-        `${API_BASE_URL}/items/vehicle_datas?filter[gps_id][_in]=${gpsIds}&limit=500&sort=-timestamp`,
+        `/api/vehicle-data?user_id=${userId}`,
         {
           headers: {
-            'Accept': 'application/json',
+            Accept: 'application/json',
             'Content-Type': 'application/json'
           }
         }
@@ -294,7 +292,7 @@ const useVehicleData = (userId: string | null) => {
       console.log('📊 Loading sidebar data for user:', userId);
 
       const vehicles = await fetchVehicles(userId);
-      const statusData = await fetchVehicleStatus(vehicles);
+      const statusData = await fetchVehicleStatus(userId, vehicles);
 
       // Cache the results
       cacheRef.current = {

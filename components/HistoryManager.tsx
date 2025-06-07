@@ -60,9 +60,9 @@ interface ProcessedVehicleForMap {
 }
 
 // API Configuration
-import { API_BASE_URL } from '../api/file';
-const VEHICLE_ENDPOINT = `${API_BASE_URL}/items/vehicle`;
-const VEHICLE_DATA_ENDPOINT = `${API_BASE_URL}/items/vehicle_datas`;
+// Use internal API routes to avoid cross origin requests
+const VEHICLE_ENDPOINT = '/api/vehicles';
+const VEHICLE_DATA_ENDPOINT = '/api/vehicle-data';
 
 // 🔧 Optimized SWR Configuration
 const swrConfig = {

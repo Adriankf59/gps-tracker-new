@@ -26,7 +26,7 @@ import {
 import dynamic from 'next/dynamic';
 import { toast } from 'sonner';
 import useSWR from 'swr';
-import { API_BASE_URL } from '../api/file';
+// Requests should go through Next.js API routes
 
 const MapComponent = dynamic(() => import('./MapComponent').catch(() => ({ default: () => <div>Map not available</div> })), {
   ssr: false,
@@ -130,10 +130,10 @@ interface VehiclePositionHistory {
 }
 
 // API Configuration
-const GEOFENCE_API_BASE_URL = `${API_BASE_URL}/items/geofence`;
-const VEHICLE_API_ENDPOINT_BASE = `${API_BASE_URL}/items/vehicle`;
-const VEHICLE_DATA_API_ENDPOINT_BASE = `${API_BASE_URL}/items/vehicle_datas`;
-const ALERTS_API_ENDPOINT = `${API_BASE_URL}/items/alerts`; // NEW: Alert endpoint
+const GEOFENCE_API_BASE_URL = '/api/geofences';
+const VEHICLE_API_ENDPOINT_BASE = '/api/vehicles';
+const VEHICLE_DATA_API_ENDPOINT_BASE = '/api/vehicle-data';
+const ALERTS_API_ENDPOINT = '/api/alerts';
 
 // Optimized SWR configuration
 const swrConfig = {

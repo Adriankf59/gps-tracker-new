@@ -97,7 +97,9 @@ interface DashboardStats {
 }
 
 // ===== CONSTANTS =====
-import { API_BASE_URL } from '../api/file';
+// Use internal API routes so the client never directly contacts the Directus
+// instance. This avoids mixed-content issues when the dashboard is served over
+// HTTPS.
 
 const REFRESH_INTERVALS = {
   VEHICLES: 30000,      // 30 seconds
@@ -227,7 +229,7 @@ const useUser = () => {
 
 const useVehicles = (userId?: string) => {
   const { data, error, isLoading, mutate } = useSWR(
-    userId ? `${API_BASE_URL}/items/vehicle?filter[user_id][_eq]=${userId}&limit=-1` : null,
+    userId ? `/api/vehicles?user_id=${userId}&limit=-1` : null,
     fetcher,
     {
       refreshInterval: REFRESH_INTERVALS.VEHICLES,
@@ -260,7 +262,7 @@ const useVehicleData = (vehicles: Vehicle[]) => {
   }, [vehicles]);
 
   const { data, error, isLoading, mutate } = useSWR(
-    gpsIds ? `${API_BASE_URL}/items/vehicle_datas?filter[gps_id][_in]=${gpsIds}&limit=1000&sort=-timestamp` : null,
+    userId && gpsIds ? `/api/vehicle-data?user_id=${userId}` : null,
     fetcher,
     {
       refreshInterval: REFRESH_INTERVALS.VEHICLE_DATA,
@@ -285,7 +287,7 @@ const useVehicleData = (vehicles: Vehicle[]) => {
 
 const useGeofences = (userId?: string) => {
   const { data, error, isLoading, mutate } = useSWR(
-    userId ? `${API_BASE_URL}/items/geofence?filter[user_id][_eq]=${userId}` : null,
+    userId ? `/api/geofences?user_id=${userId}` : null,
     fetcher,
     {
       refreshInterval: REFRESH_INTERVALS.GEOFENCES,
