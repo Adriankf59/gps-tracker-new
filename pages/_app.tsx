@@ -105,7 +105,7 @@ const suppressBrowserExtensionErrors = () => {
     }
     
     if (originalUnhandledRejection) {
-      originalUnhandledRejection(event);
+      originalUnhandledRejection.call(window, event);
     }
   };
 };
@@ -415,7 +415,7 @@ export default function App({ Component, pageProps }: AppProps) {
 }
 
 // ===== NEXT.JS CONFIG =====
-App.getInitialProps = async (context) => {
+App.getInitialProps = async (context: any) => {
   // Server-side: suppress any extension-related processing
   if (typeof window === 'undefined') {
     return {};

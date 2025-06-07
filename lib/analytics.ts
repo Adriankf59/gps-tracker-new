@@ -1,3 +1,5 @@
+import React from 'react';
+
 // Global analytics interface
 declare global {
   interface Window {
@@ -265,7 +267,7 @@ export const withPageTracking = <P extends object>(
       trackPageView(pageTitle, path);
     }, []);
 
-    return <WrappedComponent {...props} />;
+    return React.createElement(WrappedComponent, props);
   };
 
   ComponentWithPageTracking.displayName = `withPageTracking(${pageTitle})`;

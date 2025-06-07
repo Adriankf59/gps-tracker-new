@@ -292,8 +292,8 @@ export default function MapWithDrawing({
                   onCreated={handleCreated}
                   onEdited={handleEdited}
                   onDeleted={handleDeleted}
-                  draw={drawOptions}
-                  edit={editOptions}
+                  draw={drawOptions as any}
+                  edit={editOptions as any}
                 />
               )}
             </reactLeaflet.FeatureGroup>

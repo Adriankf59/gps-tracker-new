@@ -168,8 +168,7 @@ const fetcher = async (url: string) => {
       headers: {
         'Content-Type': 'application/json',
         ...(token ? { 'Authorization': `Bearer ${token}` } : {})
-      },
-      timeout: 30000
+      }
     });
 
     if (!response.ok) {
@@ -756,7 +755,7 @@ export function LiveTracking() {
         location: latestData?.latitude && latestData?.longitude 
           ? getLocationName(latestData.latitude, latestData.longitude) 
           : 'No GPS data',
-        lastUpdateString: getRelativeTime(latestData?.timestamp),
+        lastUpdateString: getRelativeTime(latestData?.timestamp ?? null),
         isOnline: isVehicleOnline(latestData)
       } as VehicleWithTracking;
     });
