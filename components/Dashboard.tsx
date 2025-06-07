@@ -31,6 +31,9 @@ const MapComponent = dynamic(() => import('./MapComponent'), {
   )
 });
 
+// Reuse MapComponent vehicle type for consistency
+import type { ProcessedVehicle as MapVehicle } from './MapComponent';
+
 // ===== INTERFACES & TYPES =====
 interface Vehicle {
   vehicle_id: string;
@@ -63,21 +66,7 @@ interface VehicleData {
   satellites_used: number | null;
 }
 
-interface ProcessedVehicle {
-  id: string;
-  name: string;
-  licensePlate: string;
-  position: [number, number];
-  speed: number;
-  ignition: boolean;
-  fuel: number | null;
-  battery: number | null;
-  timestamp: string | null;
-  isMotor: boolean;
-  make?: string;
-  model?: string;
-  year?: number;
-  status: 'moving' | 'parked' | 'offline';
+interface ProcessedVehicle extends MapVehicle {
   isOnline: boolean;
   location: string;
   latestData?: VehicleData;
@@ -496,7 +485,7 @@ export function Dashboard() {
   }, [processedVehicles]);
 
   // Event handlers
-  const handleVehicleClick = useCallback((vehicle: ProcessedVehicle) => {
+  const handleVehicleClick = useCallback((vehicle: MapVehicle) => {
     console.log('Dashboard: Vehicle selected from map:', vehicle.name);
     setSelectedVehicleId(vehicle.id);
   }, []);

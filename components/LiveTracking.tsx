@@ -168,8 +168,7 @@ const fetcher = async (url: string) => {
       headers: {
         'Content-Type': 'application/json',
         ...(token ? { 'Authorization': `Bearer ${token}` } : {})
-      },
-      timeout: 30000
+      }
     });
 
     if (!response.ok) {
@@ -195,7 +194,8 @@ const fetcher = async (url: string) => {
 };
 
 // Safe array utility
-const ensureArray = <T>(value: any): T[] => {
+// Include trailing comma to disambiguate from JSX
+const ensureArray = <T,>(value: any): T[] => {
   if (Array.isArray(value)) return value;
   if (value && typeof value === 'object' && value.data) {
     return Array.isArray(value.data) ? value.data : [];
@@ -755,7 +755,7 @@ export function LiveTracking() {
         location: latestData?.latitude && latestData?.longitude 
           ? getLocationName(latestData.latitude, latestData.longitude) 
           : 'No GPS data',
-        lastUpdateString: getRelativeTime(latestData?.timestamp),
+        lastUpdateString: getRelativeTime(latestData?.timestamp ?? null),
         isOnline: isVehicleOnline(latestData)
       } as VehicleWithTracking;
     });

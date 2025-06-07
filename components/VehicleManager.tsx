@@ -271,7 +271,7 @@ const useVehicleData = (userId: string | null) => {
     const cacheAge = cacheRef.current ? now - cacheRef.current.timestamp : Infinity;
     const shouldUseCache = !forceRefresh && cacheRef.current && cacheAge < CACHE_DURATION_MS;
 
-    if (shouldUseCache) {
+    if (shouldUseCache && cacheRef.current) {
       const { vehicles, vehicleData } = cacheRef.current;
       const mergedData = mergeVehicleData(vehicles, vehicleData);
       setState(prev => ({
