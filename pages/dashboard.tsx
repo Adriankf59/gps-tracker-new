@@ -387,7 +387,7 @@ const DashboardPage = () => {
 
   return (
     <div 
-      className={`flex min-h-screen w-full bg-gradient-to-br from-slate-50 to-slate-100 transition-all duration-1000 ${isVisible ? 'opacity-100' : 'opacity-0'}`}
+      className={`flex min-h-screen w-full bg-white transition-all duration-1000 ${isVisible ? 'opacity-100' : 'opacity-0'}`}
       suppressHydrationWarning={true}
     >
       <SidebarProvider>
@@ -565,7 +565,7 @@ const DashboardPage = () => {
           </header>
 
           {/* Main Content Area */}
-          <div className="flex-1 overflow-auto bg-gradient-to-br from-slate-50/50 to-slate-100/50">
+          <div className="flex-1 overflow-auto bg-white">
             <div className="p-6">
               <CleanMainContent 
                 activeView={activeView} 
