@@ -419,85 +419,67 @@ const HistoryManagerFallback: React.FC<ComponentProps> = ({ user, systemStatus, 
 // 🎯 LAZY LOADING COMPONENTS - SAME AS BEFORE
 // ========================================
 
-const Dashboard = lazy(() => 
-  import('@/components/Dashboard')
-    .then(module => ({ default: module.Dashboard || module.default }))
-    .catch((err) => {
-      console.warn('Dashboard component not found, using fallback:', err.message);
-      return Promise.resolve({ default: DashboardFallback });
-    })
+const Dashboard = lazy(() =>
+  (import('@/components/Dashboard')
+    .then(mod => ({ default: (mod as any).Dashboard || (mod as any).default }))
+    .catch(() => ({ default: DashboardFallback }))
+  ) as Promise<{ default: React.ComponentType<any> }>
 );
 
-const VehicleManager = lazy(() => 
-  import('@/components/VehicleManager')
-    .then(module => ({ default: module.VehicleManager || module.default }))
-    .catch((err) => {
-      console.warn('VehicleManager component not found, using fallback:', err.message);
-      return Promise.resolve({ default: VehicleManagerFallback });
-    })
+const VehicleManager = lazy(() =>
+  (import('@/components/VehicleManager')
+    .then(mod => ({ default: (mod as any).VehicleManager || (mod as any).default }))
+    .catch(() => ({ default: VehicleManagerFallback }))
+  ) as Promise<{ default: React.ComponentType<any> }>
 );
 
-const LiveTracking = lazy(() => 
-  import('@/components/LiveTracking')
-    .then(module => ({ default: module.LiveTracking || module.default }))
-    .catch((err) => {
-      console.warn('LiveTracking component not found, using fallback:', err.message);
-      return Promise.resolve({ default: LiveTrackingFallback });
-    })
+const LiveTracking = lazy(() =>
+  (import('@/components/LiveTracking')
+    .then(mod => ({ default: (mod as any).LiveTracking || (mod as any).default }))
+    .catch(() => ({ default: LiveTrackingFallback }))
+  ) as Promise<{ default: React.ComponentType<any> }>
 );
 
-const GeofenceManager = lazy(() => 
-  import('@/components/GeofenceManager')
-    .then(module => ({ default: module.GeofenceManager || module.default }))
-    .catch((err) => {
-      console.warn('GeofenceManager component not found, using fallback:', err.message);
-      return Promise.resolve({ default: GeofenceManagerFallback });
-    })
+const GeofenceManager = lazy(() =>
+  (import('@/components/GeofenceManager')
+    .then(mod => ({ default: (mod as any).GeofenceManager || (mod as any).default }))
+    .catch(() => ({ default: GeofenceManagerFallback }))
+  ) as Promise<{ default: React.ComponentType<any> }>
 );
 
-const AlertManager = lazy(() => 
-  import('@/components/AlertManager')
-    .then(module => ({ default: module.AlertManager || module.default }))
-    .catch((err) => {
-      console.warn('AlertManager component not found, using fallback:', err.message);
-      return Promise.resolve({ default: AlertManagerFallback });
-    })
+const AlertManager = lazy(() =>
+  (import('@/components/AlertManager')
+    .then(mod => ({ default: (mod as any).AlertManager || (mod as any).default }))
+    .catch(() => ({ default: AlertManagerFallback }))
+  ) as Promise<{ default: React.ComponentType<any> }>
 );
 
-const CommandCenter = lazy(() => 
-  import('@/components/CommandCenter')
-    .then(module => ({ default: module.CommandCenter || module.default }))
-    .catch((err) => {
-      console.warn('CommandCenter component not found, using fallback:', err.message);
-      return Promise.resolve({ default: CommandCenterFallback });
-    })
+const CommandCenter = lazy(() =>
+  (import('@/components/CommandCenter')
+    .then(mod => ({ default: (mod as any).CommandCenter || (mod as any).default }))
+    .catch(() => ({ default: CommandCenterFallback }))
+  ) as Promise<{ default: React.ComponentType<any> }>
 );
 
-const UserManager = lazy(() => 
-  import('@/components/UserManager')
-    .then(module => ({ default: module.UserManager || module.default }))
-    .catch((err) => {
-      console.warn('UserManager component not found, using fallback:', err.message);
-      return Promise.resolve({ default: UserManagerFallback });
-    })
+const UserManager = lazy(() =>
+  (import('@/components/UserManager')
+    .then(mod => ({ default: (mod as any).UserManager || (mod as any).default }))
+    .catch(() => ({ default: UserManagerFallback }))
+  ) as Promise<{ default: React.ComponentType<any> }>
 );
 
-const SettingsPanel = lazy(() => 
-  import('@/components/SettingsPanel')
-    .then(module => ({ default: module.SettingsPanel || module.default }))
-    .catch((err) => {
-      console.warn('SettingsPanel component not found, using fallback:', err.message);
-      return Promise.resolve({ default: SettingsPanelFallback });
-    })
+const SettingsPanel = lazy(() =>
+  (import('@/components/SettingsPanel')
+    .then(mod => ({ default: (mod as any).SettingsPanel || (mod as any).default }))
+    .catch(() => ({ default: SettingsPanelFallback }))
+  ) as Promise<{ default: React.ComponentType<any> }>
 );
 
-const HistoryManager = lazy(() => 
-  import('@/components/HistoryManager')
-    .then(module => ({ default: module.HistoryManager || module.default }))
-    .catch((err) => {
-      console.warn('HistoryManager component not found, using fallback:', err.message);
-      return Promise.resolve({ default: HistoryManagerFallback });
-    })
+const HistoryManager = lazy(() =>
+  (import('@/components/HistoryManager')
+    .then(mod => ({ default: (mod as any).HistoryManager || (mod as any).default }))
+    .catch(() => ({ default: HistoryManagerFallback }))
+  ) as Promise<{ default: React.ComponentType<any> }>
 );
 
 // ========================================

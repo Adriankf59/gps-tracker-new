@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, ReactNode } from 'react';
+import { useEffect, useState, ReactNode, ReactElement } from 'react';
 
 // Hook untuk detect client-side mounting
 export const useClientOnly = (): boolean => {
@@ -37,12 +37,12 @@ interface ClientOnlyProps {
   fallback?: ReactNode;
 }
 
-export const ClientOnly = ({ children, fallback = null }: ClientOnlyProps) => {
+export const ClientOnly = ({ children, fallback = null }: ClientOnlyProps): ReactElement | null => {
   const isMounted = useClientOnly();
   
   if (!isMounted) {
-    return fallback as JSX.Element;
+    return fallback as ReactElement | null;
   }
-  
-  return children as JSX.Element;
+
+  return children as ReactElement | null;
 };

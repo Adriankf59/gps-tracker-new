@@ -29,7 +29,7 @@ interface ProjectGeofence {
 }
 
 // Simplified interfaces for map display
-interface ProcessedVehicle {
+export interface ProcessedVehicle {
   id: string;
   name: string;
   licensePlate: string;

@@ -41,7 +41,7 @@
     'Element type is invalid. Received a promise'
   ];
   
-  function shouldSuppressError(message) {
+  function shouldSuppressError(message: any) {
     if (typeof message !== 'string') return false;
     
     const lowerMessage = message.toLowerCase();
@@ -51,7 +51,7 @@
     );
   }
   
-  function shouldSuppressWarning(message) {
+  function shouldSuppressWarning(message: any) {
     if (typeof message !== 'string') return false;
     
     const lowerMessage = message.toLowerCase();
@@ -110,7 +110,7 @@
     }
     
     if (originalUnhandledRejection) {
-      originalUnhandledRejection.call(this, event);
+      originalUnhandledRejection.call(window, event);
     }
   };
   

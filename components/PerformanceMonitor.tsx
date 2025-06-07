@@ -223,9 +223,9 @@ export const withPerformanceMonitoring = <P extends object>(
   WrappedComponent: React.ComponentType<P>,
   componentName?: string
 ) => {
+  const displayName = componentName || WrappedComponent.displayName || WrappedComponent.name || 'Component';
+
   const ComponentWithPerformanceMonitoring = (props: P) => {
-    const displayName = componentName || WrappedComponent.displayName || WrappedComponent.name || 'Component';
-    
     return (
       <PerformanceMonitor
         componentName={displayName}
@@ -280,11 +280,12 @@ export const ProfiledComponent: React.FC<{
 }> = ({ id, children, onRender }) => {
   const handleRender = (
     id: string,
-    phase: 'mount' | 'update',
+    phase: 'mount' | 'update' | 'nested-update',
     actualDuration: number,
     baseDuration: number,
     startTime: number,
-    commitTime: number
+    commitTime: number,
+    interactions: Set<any>
   ) => {
     // Log profiling data
     if (process.env.NODE_ENV === 'development') {
@@ -303,7 +304,7 @@ export const ProfiledComponent: React.FC<{
   // Only use Profiler in development
   if (process.env.NODE_ENV === 'development' && React.Profiler) {
     return (
-      <React.Profiler id={id} onRender={handleRender}>
+      <React.Profiler id={id} onRender={handleRender as any}>
         {children}
       </React.Profiler>
     );

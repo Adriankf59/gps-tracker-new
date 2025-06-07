@@ -99,7 +99,8 @@ const MAP_ZOOM_LEVELS = {
 } as const;
 
 // 🔧 Enhanced utility functions
-const ensureArray = <T>(value: any): T[] => {
+// Avoid JSX ambiguity by using a trailing comma in the generic
+const ensureArray = <T,>(value: any): T[] => {
   if (Array.isArray(value)) return value;
   if (value?.data && Array.isArray(value.data)) return value.data;
   return [];
@@ -119,10 +120,12 @@ const validateGeofence = (geofence: Geofence | null | undefined): geofence is Ge
     
     if (geofence.type === 'polygon') {
       const { coordinates } = geofence.definition;
-      return !!(coordinates?.[0]?.length >= 4 &&
-               coordinates[0].every(coord => 
-                 Array.isArray(coord) && 
-                 coord.length === 2 && 
+      const polygon = coordinates?.[0];
+      return !!(polygon &&
+               polygon.length >= 4 &&
+               polygon.every(coord =>
+                 Array.isArray(coord) &&
+                 coord.length === 2 &&
                  coord.every(c => typeof c === 'number' && isFinite(c))
                ));
     }
@@ -207,9 +210,9 @@ export function GeofenceManager() {
   const [selectedVehicles, setSelectedVehicles] = useState<string[]>([]);
   
   // 🔧 Enhanced refs for optimization
-  const debounceTimeoutRef = useRef<NodeJS.Timeout>();
-  const fetchAbortControllerRef = useRef<AbortController>();
-  const refreshIntervalRef = useRef<NodeJS.Timeout>(); // 🆕 Auto refresh interval
+  const debounceTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const fetchAbortControllerRef = useRef<AbortController | null>(null);
+  const refreshIntervalRef = useRef<NodeJS.Timeout | null>(null); // 🆕 Auto refresh interval
   const isInitialLoadRef = useRef(true); // 🆕 Track initial load
 
   // 🔧 Enhanced API functions with better error handling and data persistence
@@ -332,7 +335,7 @@ export function GeofenceManager() {
       
       if (!result) return []; // Request was aborted
       
-      const fetchedVehicles = ensureArray(result.data || result);
+      const fetchedVehicles = ensureArray<Vehicle>(result.data || result);
       setVehicles(fetchedVehicles);
       
       console.log(`✅ Successfully loaded ${fetchedVehicles.length} vehicles`);
@@ -433,10 +436,23 @@ export function GeofenceManager() {
     );
   }, [geofences, uiState.searchTerm]);
 
-  const validGeofences = useMemo(() => 
-    geofences.filter(validateGeofence), 
+  const validGeofences: Geofence[] = useMemo(
+    () => geofences.filter((g): g is Geofence => validateGeofence(g)),
     [geofences]
   );
+
+  // Geofences to display on the map
+  const displayedGeofences: Geofence[] = useMemo(() => {
+    if (uiState.isCreating) return [];
+    if (currentGeofence && validateGeofence(currentGeofence)) {
+      return [currentGeofence];
+    }
+    if (currentGeofence) {
+      const id = (currentGeofence as Geofence).geofence_id;
+      return validGeofences.filter(gf => gf.geofence_id === id);
+    }
+    return validGeofences;
+  }, [uiState.isCreating, currentGeofence, validGeofences]);
 
   // 🔧 Enhanced vehicle assignment functions
   const getAssignedVehiclesCount = useCallback((geofenceId: number) => {
@@ -1169,15 +1185,7 @@ export function GeofenceManager() {
             onDrawCreated={uiState.isCreating ? handleDrawCreated : undefined}
             onDrawDeleted={uiState.isCreating ? handleDrawDeleted : undefined}
             viewOnly={!uiState.isCreating}
-            geofences={uiState.isCreating 
-              ? [] 
-              : (currentGeofence && validateGeofence(currentGeofence) 
-                  ? [currentGeofence] 
-                  : validGeofences.filter(gf => 
-                      currentGeofence ? gf.geofence_id === currentGeofence.geofence_id : true
-                    )
-                )
-            }
+            geofences={displayedGeofences}
             selectedGeofence={uiState.isCreating || !currentGeofence || !validateGeofence(currentGeofence) 
               ? null 
               : currentGeofence
