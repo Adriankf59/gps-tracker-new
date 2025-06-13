@@ -65,7 +65,7 @@ import { API_BASE_URL } from '../api/file';
 
 const INTERVALS = {
   VEHICLES: 60000,
-  VEHICLE_DATA: 5000,   // Ubah dari 10000 ke 5000 (5 detik)
+  VEHICLE_DATA: 10000,
   GEOFENCES: 300000,
   ALERTS: 15000
 };
