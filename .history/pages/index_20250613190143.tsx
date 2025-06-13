@@ -55,7 +55,7 @@ const LandingPage = () => {
     {
       name: "Budi Santoso",
       company: "PT Logistik Prima",
-      text: "Sejak menggunakan Vehitrack, efisiensi armada kami meningkat 35%. ROI tercapai dalam 3 bulan!",
+      text: "Sejak menggunakan Vehitack, efisiensi armada kami meningkat 35%. ROI tercapai dalam 3 bulan!",
       rating: 5
     },
     {
@@ -110,7 +110,7 @@ const LandingPage = () => {
               </div>
               <div>
                 <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-blue-800 bg-clip-text text-transparent">
-                  Vehitrack
+                  Vehitack
                 </h1>
                 <p className="text-sm text-slate-500">Vehicle Management System</p>
               </div>
@@ -464,7 +464,7 @@ const LandingPage = () => {
                 <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-blue-700 rounded-xl flex items-center justify-center">
                   <MapPin className="w-6 h-6 text-white" />
                 </div>
-                <span className="text-2xl font-bold">Vehitrack</span>
+                <span className="text-2xl font-bold">Vehitack</span>
               </div>
               <p className="text-slate-400 mb-4 max-w-md">
                 Solusi manajemen kendaraan terdepan dengan teknologi AI dan IoT untuk efisiensi maksimal armada Anda.
@@ -500,7 +500,7 @@ const LandingPage = () => {
             </div>
           </div>
           <div className="border-t border-slate-800 pt-8 text-center text-slate-400">
-            <p>© 2024 Vehitrack. Semua hak dilindungi undang-undang.</p>
+            <p>© 2024 Vehitack. Semua hak dilindungi undang-undang.</p>
           </div>
         </div>
       </footer>
