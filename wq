@@ -1,0 +1,295 @@
+[33mcommit fc8e10da7908775335f53f8cb9e6ed8ca6a415f4[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m, [m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m)[m
+Author: Adriankf59 <adriancuman@gmail.com>
+Date:   Fri Jun 13 19:02:43 2025 +0700
+
+    Update Halaman Index.tsx
+
+[33mcommit c951c8d6d885d7838a51d1072b2a49d21182aa15[m
+Author: Adriankf59 <adriancuman@gmail.com>
+Date:   Fri Jun 13 18:33:32 2025 +0700
+
+    Update Navbar index.tsx menjadi responsive
+
+[33mcommit 22d9694001ac721128740820e442addc0682e89e[m
+Author: Adriankf59 <adriancuman@gmail.com>
+Date:   Sun Jun 8 05:34:46 2025 +0700
+
+    update dashboard.tsx
+
+[33mcommit c35e8af383af2b4a8d4744ee0c88d8fada55ca3a[m
+Author: Adriankf59 <adriancuman@gmail.com>
+Date:   Sun Jun 8 05:06:39 2025 +0700
+
+    back _app.tsx
+
+[33mcommit 08f1036802e4cf130073bbb921b85c46571e229b[m
+Author: Adriankf59 <adriancuman@gmail.com>
+Date:   Sun Jun 8 05:04:16 2025 +0700
+
+    update Dasboard, _app.tsx bg jadi putih
+
+[33mcommit fcb59448c6397b0ee0af3baac05e60f38d50e05d[m
+Author: Adriankf59 <adriancuman@gmail.com>
+Date:   Sun Jun 8 03:56:55 2025 +0700
+
+    update MainContent.tsx dengan menghilangkan header di semua component
+
+[33mcommit b968d5f041f447e40379070402e7e6d03cf677da[m
+Author: Adriankf59 <adriancuman@gmail.com>
+Date:   Sun Jun 8 03:46:15 2025 +0700
+
+    menambahkan kpi jarak tempuh di dashboard
+
+[33mcommit 20a073ecdff393bfdc3300e8ffb09be4ce8747ed[m
+Author: Adriankf59 <adriancuman@gmail.com>
+Date:   Sun Jun 8 03:16:44 2025 +0700
+
+    update bagian input otp menjadi responsif fix typescript
+
+[33mcommit 42c273326f2bec230ef5cab824b123e1e15f386d[m
+Author: Adriankf59 <adriancuman@gmail.com>
+Date:   Sun Jun 8 03:12:26 2025 +0700
+
+    update bagian input otp menjadi responsif
+
+[33mcommit 17e4fafcb14891d2440bbc9af400741a486bf5ea[m
+Author: Adriankf59 <96868524+Adriankf59@users.noreply.github.com>
+Date:   Sat Jun 7 19:05:26 2025 +0700
+
+    add .env.local
+
+[33mcommit b8f0f9910e866cfc7637c9261e5802199536562f[m
+Author: Adriankf59 <96868524+Adriankf59@users.noreply.github.com>
+Date:   Sat Jun 7 18:17:10 2025 +0700
+
+    Update file.ts
+
+[33mcommit 04eeb3eee8ae4887cb084d1d4439582bc0c567be[m[33m ([m[1;31morigin/codex/fix-data-fetch-errors-on-dashboard-login[m[33m, [m[1;32mcodex/fix-data-fetch-errors-on-dashboard-login[m[33m)[m
+Author: Adriankf59 <96868524+Adriankf59@users.noreply.github.com>
+Date:   Sat Jun 7 14:02:17 2025 +0700
+
+    fix: use https for api base url
+
+[33mcommit a41dc1bfff24673dbd25e1f9ca048bb6bf34be36[m
+Author: Adriankf59 <96868524+Adriankf59@users.noreply.github.com>
+Date:   Sat Jun 7 13:28:29 2025 +0700
+
+    Update GeofenceManager.tsx
+
+[33mcommit 5d505cd6961ed80de2ad3e8afad81edad9da6182[m
+Merge: 67ff25a 5124150
+Author: Adriankf59 <96868524+Adriankf59@users.noreply.github.com>
+Date:   Sat Jun 7 13:21:22 2025 +0700
+
+    Merge pull request #19 from Adriankf59/510c9c-codex/fix-deployment-error-in-appsidebar.tsx
+    
+    Fix geofence validation and npm config
+
+[33mcommit 51241505eefacc08a8ca96bc1220771d41d81915[m[33m ([m[1;31morigin/510c9c-codex/fix-deployment-error-in-appsidebar.tsx[m[33m)[m
+Merge: a930788 67ff25a
+Author: Adriankf59 <96868524+Adriankf59@users.noreply.github.com>
+Date:   Sat Jun 7 13:21:14 2025 +0700
+
+    Merge branch 'main' into 510c9c-codex/fix-deployment-error-in-appsidebar.tsx
+
+[33mcommit a9307880cebcbd2b0bdb41c830cd4d0aca2a18d3[m
+Author: Adriankf59 <96868524+Adriankf59@users.noreply.github.com>
+Date:   Sat Jun 7 13:19:39 2025 +0700
+
+    chore: fix npm config
+
+[33mcommit 67ff25ab1a2853e7072402076a079f55496e452d[m
+Merge: 0ca2dfc 5b8b5d5
+Author: Adriankf59 <96868524+Adriankf59@users.noreply.github.com>
+Date:   Sat Jun 7 13:01:03 2025 +0700
+
+    Merge pull request #18 from Adriankf59/383u59-codex/fix-deployment-error-in-appsidebar.tsx
+    
+    Fix build errors
+
+[33mcommit 5b8b5d58b92727630c34d6ba203b237e35d6e254[m[33m ([m[1;31morigin/383u59-codex/fix-deployment-error-in-appsidebar.tsx[m[33m)[m
+Merge: d65dfd7 0ca2dfc
+Author: Adriankf59 <96868524+Adriankf59@users.noreply.github.com>
+Date:   Sat Jun 7 12:59:48 2025 +0700
+
+    Merge branch 'main' into 383u59-codex/fix-deployment-error-in-appsidebar.tsx
+
+[33mcommit d65dfd7b517d2240ebb5c202b902ccdcbaabd291[m
+Author: Adriankf59 <96868524+Adriankf59@users.noreply.github.com>
+Date:   Sat Jun 7 12:49:09 2025 +0700
+
+    Fix build errors
+
+[33mcommit 0ca2dfcaa88ed307ab3a7a3c725308d05ff84839[m
+Merge: a5147a9 c1c1792
+Author: Adriankf59 <96868524+Adriankf59@users.noreply.github.com>
+Date:   Sat Jun 7 04:26:40 2025 +0700
+
+    Merge pull request #17 from Adriankf59/codex/fix--undefined--error-in-geofencemanager.tsx
+    
+    Fix polygon validation to avoid undefined error
+
+[33mcommit c1c179240382f114df2a49aa5809c159c294036d[m[33m ([m[1;31morigin/codex/fix--undefined--error-in-geofencemanager.tsx[m[33m)[m
+Author: Adriankf59 <96868524+Adriankf59@users.noreply.github.com>
+Date:   Sat Jun 7 04:26:11 2025 +0700
+
+    fix polygon validation
+
+[33mcommit a5147a9ffa987405e92826395694d4c2b16023e6[m
+Merge: c40b35d 3750507
+Author: Adriankf59 <96868524+Adriankf59@users.noreply.github.com>
+Date:   Sat Jun 7 04:15:40 2025 +0700
+
+    Merge pull request #16 from Adriankf59/wy9oln-codex/fix-deployment-error-in-appsidebar.tsx
+    
+    Fix sidebar cache null check
+
+[33mcommit 375050761c4b87e6e8b1ff554878cf560929cddc[m[33m ([m[1;31morigin/wy9oln-codex/fix-deployment-error-in-appsidebar.tsx[m[33m)[m
+Author: Adriankf59 <96868524+Adriankf59@users.noreply.github.com>
+Date:   Sat Jun 7 04:14:54 2025 +0700
+
+    Fix generic util syntax in TSX files
+
+[33mcommit c40b35d46f7169681270bc639dd78ddbaeaa6ca5[m
+Merge: 69bab30 4443af8
+Author: Adriankf59 <96868524+Adriankf59@users.noreply.github.com>
+Date:   Sat Jun 7 04:07:48 2025 +0700
+
+    Merge pull request #15 from Adriankf59/tb34v6-codex/fix-deployment-error-in-appsidebar.tsx
+    
+    Fix sidebar cache null check
+
+[33mcommit 4443af80cdc281c7258562cfd7d66858a80a84c0[m[33m ([m[1;31morigin/tb34v6-codex/fix-deployment-error-in-appsidebar.tsx[m[33m)[m
+Author: Adriankf59 <96868524+Adriankf59@users.noreply.github.com>
+Date:   Sat Jun 7 04:07:25 2025 +0700
+
+    Fix type mismatch for map vehicle click handler
+
+[33mcommit 69bab30f9a6a9da6021e5b900d1696c09600be3d[m
+Merge: f52598b ce3a53e
+Author: Adriankf59 <96868524+Adriankf59@users.noreply.github.com>
+Date:   Sat Jun 7 04:03:04 2025 +0700
+
+    Merge pull request #14 from Adriankf59/62hdla-codex/fix-deployment-error-in-appsidebar.tsx
+    
+    Fix sidebar cache null check
+
+[33mcommit ce3a53eceaf98a315ca86b0a4418244e67415985[m
+Author: Adriankf59 <96868524+Adriankf59@users.noreply.github.com>
+Date:   Sat Jun 7 04:02:50 2025 +0700
+
+    sync vehicle interface
+
+[33mcommit f52598ba932c68fdad958450ac782e622c5f030e[m
+Merge: 2c72b76 b3a75f3
+Author: Adriankf59 <96868524+Adriankf59@users.noreply.github.com>
+Date:   Sat Jun 7 03:59:06 2025 +0700
+
+    Merge pull request #13 from Adriankf59/codex/perbaiki-deploy-error-di-vercel
+    
+    Fix Next.js config file for Vercel
+
+[33mcommit b3a75f37ca481bc262a1959544b22876c6f91331[m[33m ([m[1;31morigin/codex/perbaiki-deploy-error-di-vercel[m[33m)[m
+Author: Adriankf59 <96868524+Adriankf59@users.noreply.github.com>
+Date:   Sat Jun 7 03:58:54 2025 +0700
+
+    chore: use js next config for vercel
+
+[33mcommit 2c72b76686abd3f9b6e96c082200a643ff5a3682[m
+Merge: 260a047 e57cf2e
+Author: Adriankf59 <96868524+Adriankf59@users.noreply.github.com>
+Date:   Sat Jun 7 03:49:17 2025 +0700
+
+    Merge pull request #12 from Adriankf59/codex/fix-deployment-error-in-appsidebar.tsx
+    
+    Fix sidebar cache null check
+
+[33mcommit e57cf2e0eceac627d1a41c19a59a20a45bb71155[m[33m ([m[1;31morigin/codex/fix-deployment-error-in-appsidebar.tsx[m[33m)[m
+Author: Adriankf59 <96868524+Adriankf59@users.noreply.github.com>
+Date:   Sat Jun 7 03:48:39 2025 +0700
+
+    fix null check for sidebar cache
+
+[33mcommit 260a0475d0388089a4c19c644c4f31c74a66ab29[m
+Merge: 23d4e7b 96ab81f
+Author: Adriankf59 <96868524+Adriankf59@users.noreply.github.com>
+Date:   Sat Jun 7 03:32:59 2025 +0700
+
+    Merge pull request #11 from Adriankf59/codex/save-http-endpoint-in-a-.ts-file
+    
+    Centralize API endpoints
+
+[33mcommit 96ab81f7c82f713c32c6225c0244654f69e044fc[m[33m ([m[1;31morigin/codex/save-http-endpoint-in-a-.ts-file[m[33m)[m
+Author: Adriankf59 <96868524+Adriankf59@users.noreply.github.com>
+Date:   Sat Jun 7 03:32:34 2025 +0700
+
+    refactor: centralize API base URL
+
+[33mcommit 23d4e7b7cc3bf26413b6be6d70804bc2e902a689[m
+Merge: 24f440e f8f884d
+Author: Adriankf59 <96868524+Adriankf59@users.noreply.github.com>
+Date:   Sat Jun 7 00:12:58 2025 +0700
+
+    Merge pull request #1 from Adriankf59/codex/change-button-color-to-white
+    
+    Update default button color
+
+[33mcommit f8f884d558d9a0db7ace775fa2792de4f0f90a31[m[33m ([m[1;31morigin/codex/change-button-color-to-white[m[33m)[m
+Author: Adriankf59 <96868524+Adriankf59@users.noreply.github.com>
+Date:   Sat Jun 7 00:12:38 2025 +0700
+
+    feat: switch default button to white
+
+[33mcommit 24f440ec7100dbd454ed1e0bce6e7e9d2eb4f7ca[m
+Author: Adriankf59 <adriancuman@gmail.com>
+Date:   Thu Jun 5 20:57:29 2025 +0700
+
+    update Dshboard.tsx remove header
+
+[33mcommit 3448747e814fc313ef218c88734f2cff085cf7ee[m
+Author: Adriankf59 <adriancuman@gmail.com>
+Date:   Thu Jun 5 20:48:53 2025 +0700
+
+    Update Navbar Notification with api alerts
+
+[33mcommit e14c31034506aecdd6939382939a3c8efbbee6f0[m
+Author: Adriankf59 <adriancuman@gmail.com>
+Date:   Thu Jun 5 20:18:34 2025 +0700
+
+    Update forgot password
+
+[33mcommit aae45dc36cbabf5da6ecc0f755da12183a2a97c8[m
+Author: Adriankf59 <adriancuman@gmail.com>
+Date:   Thu Jun 5 12:20:47 2025 +0700
+
+    Update Halaman Login, Register, dan Dashboard
+
+[33mcommit cbf99b3144901ae41ad57570f9b880e7c570392f[m
+Author: Adriankf59 <adriancuman@gmail.com>
+Date:   Mon Jun 2 01:27:56 2025 +0700
+
+    add legacy-peer-deps=true in .npmrc
+
+[33mcommit fac4ccc98f1ca8d3856082afb33c0b6880ddb196[m
+Author: Adriankf59 <adriancuman@gmail.com>
+Date:   Mon Jun 2 01:23:19 2025 +0700
+
+    finish build on local
+
+[33mcommit 44beba7829d424cc5464e217e1de1a46d766b2eb[m
+Author: Adriankf59 <adriancuman@gmail.com>
+Date:   Sun Jun 1 16:24:49 2025 +0700
+
+    second commit
+
+[33mcommit c8711ca957f4806c5fb29502050795d85e5e55d6[m
+Author: Adriankf59 <adriancuman@gmail.com>
+Date:   Sun Jun 1 14:29:53 2025 +0700
+
+    first commit
+
+[33mcommit 32faa8d316f92219dda7e17a990c67d3f6ca1278[m
+Author: Adriankf59 <adriancuman@gmail.com>
+Date:   Tue May 27 09:46:05 2025 +0700
+
+    Initial commit from Create Next App
