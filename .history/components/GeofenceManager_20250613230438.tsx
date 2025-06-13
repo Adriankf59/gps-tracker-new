@@ -6,43 +6,29 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Shield, Search, Plus, MapPin, Trash2, Circle as CircleIcon, Square, Save, X, Car, Loader2, RefreshCw, AlertCircle } from "lucide-react";
+import { Shield, Search, Plus, MapPin, Trash2, Circle as CircleIcon, Square, Save, X, Car, Loader2, RefreshCw } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from 'sonner';
 import type { LatLngExpression } from 'leaflet';
 
-// Type for Leaflet Draw events
-interface DrawCreatedEvent {
-  layer: any;
-  layerType: string;
-}
-
 // Dynamic import with proper typing
-const MapWithDrawing = dynamic(
-  () => import('./MapWithDrawing').then((mod) => mod.default),
-  {
-    ssr: false,
-    loading: () => (
-      <div className="h-full flex items-center justify-center bg-gray-100 rounded-lg">
-        <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
-      </div>
-    )
-  }
-);
+const MapWithDrawing = dynamic(() => import('./MapWithDrawing'), {
+  ssr: false,
+  loading: () => (
+    <div className="h-full flex items-center justify-center bg-gray-100 rounded-lg">
+      <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+    </div>
+  )
+});
 
-// Import API configuration
+// Import API base URL
 import { API_BASE_URL } from '../api/file';
 
-// Use proxy endpoints to avoid mixed content
-const useProxy = typeof window !== 'undefined' && window.location.protocol === 'https:';
-
-// API endpoints - use local proxy for vehicles, direct for geofence
+// API endpoints
 const GEOFENCE_API = `${API_BASE_URL}/items/geofence`;
-const VEHICLE_API = useProxy ? '/api/vehicles' : `${API_BASE_URL}/items/vehicle`;
-const VEHICLE_API_SINGLE = useProxy ? '/api/vehicles' : `${API_BASE_URL}/items/vehicle`;
-
+const VEHICLE_API = `${API_BASE_URL}/items/vehicle`;
 const DEFAULT_CENTER: LatLngExpression = [-2.5, 118.0];
 
 // Type definitions
@@ -54,7 +40,6 @@ export type GeofenceDefinition = {
 };
 
 export type Geofence = {
-  id?: number; // Tambahan untuk handle kedua format
   geofence_id: number;
   name: string;
   status: 'active' | 'inactive';
@@ -84,7 +69,6 @@ type NewGeofenceState = {
 type User = {
   id?: string;
   user_id?: string;
-  email?: string;
 };
 
 // Utility functions
@@ -94,25 +78,9 @@ const ensureArray = (value: any): any[] => {
   return [];
 };
 
-// Normalize geofence ID - handle both 'id' and 'geofence_id'
-const normalizeGeofenceId = (gf: any): number => {
-  return Number(gf.geofence_id || gf.id || 0);
-};
-
 const validateGeofence = (gf: any): gf is Geofence => {
   if (!gf?.definition) return false;
-  
-  // Parse definition if it's a string
-  let definition = gf.definition;
-  if (typeof definition === 'string') {
-    try {
-      definition = JSON.parse(definition);
-    } catch {
-      return false;
-    }
-  }
-  
-  const { center, radius, coordinates } = definition;
+  const { center, radius, coordinates } = gf.definition;
   
   if (gf.type === 'circle') {
     return Array.isArray(center) && center.length === 2 && 
@@ -174,7 +142,6 @@ export function GeofenceManager() {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [isCreating, setIsCreating] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [fetchError, setFetchError] = useState<string | null>(null);
   const [assignDialogOpen, setAssignDialogOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [newGeofence, setNewGeofence] = useState<NewGeofenceState>({ 
@@ -187,14 +154,7 @@ export function GeofenceManager() {
 
   const abortRef = useRef<AbortController | null>(null);
 
-  // Debug logging function - only logs in development
-  const debugLog = (message: string, data?: any) => {
-    if (process.env.NODE_ENV === 'development') {
-      console.log(`[GeofenceManager] ${message}`, data || '');
-    }
-  };
-
-  // API functions with better error handling
+  // API functions
   const fetchData = useCallback(async (url: string, options: RequestInit = {}) => {
     try {
       if (abortRef.current) {
@@ -202,223 +162,73 @@ export function GeofenceManager() {
       }
       abortRef.current = new AbortController();
 
-      debugLog('fetchData called with URL:', url);
-      debugLog('fetchData options:', options);
-
       const response = await fetch(url, {
         ...options,
         signal: abortRef.current.signal,
         headers: { 
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
+          'Content-Type': 'application/json', 
           ...options.headers 
         }
       });
 
-      const responseText = await response.text();
-      debugLog('Response status:', response.status);
-      debugLog('Response headers:', response.headers);
-      debugLog('Response text (first 500 chars):', responseText.substring(0, 500));
-
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}, message: ${responseText}`);
+        throw new Error(`HTTP error! status: ${response.status}`);
       }
       
-      try {
-        const parsed = JSON.parse(responseText);
-        debugLog('Parsed response:', parsed);
-        return parsed;
-      } catch (e) {
-        debugLog('Failed to parse JSON:', e);
-        debugLog('Raw text was:', responseText);
-        return null;
-      }
+      return await response.json();
     } catch (error: any) {
       if (error.name === 'AbortError') {
-        debugLog('Request aborted');
         return null;
       }
-      debugLog('Fetch error:', error);
       throw error;
     }
   }, []);
 
   const fetchGeofences = useCallback(async (userId: string) => {
     try {
-      setFetchError(null);
-      debugLog('Fetching geofences for user:', userId);
+      const result = await fetchData(
+        `${GEOFENCE_API}?filter[user_id][_eq]=${userId}&limit=-1&sort=-date_created`
+      );
       
-      // Try multiple query formats to ensure compatibility
-      const queries = [
-        `${GEOFENCE_API}?filter[user_id][_eq]=${userId}&limit=-1&sort=-date_created`,
-        `${GEOFENCE_API}?filter[user_id]=${userId}&limit=-1&sort=-date_created`,
-        `${GEOFENCE_API}?user_id=${userId}&limit=-1&sort=-date_created`
-      ];
+      if (!result) return [];
 
-      let result = null;
-      let successfulQuery = '';
+      const parsed: Geofence[] = ensureArray(result).map((gf: any) => ({
+        ...gf,
+        geofence_id: Number(gf.geofence_id), 
+        definition: typeof gf.definition === 'string' 
+          ? JSON.parse(gf.definition) 
+          : gf.definition
+      }));
 
-      for (const query of queries) {
-        try {
-          debugLog('Trying query:', query);
-          result = await fetchData(query);
-          if (result) {
-            successfulQuery = query;
-            break;
-          }
-        } catch (e) {
-          debugLog('Query failed, trying next:', e);
-          continue;
-        }
-      }
-      
-      if (!result) {
-        // If all queries fail, try to get all geofences and filter client-side
-        debugLog('All queries failed, fetching all geofences');
-        result = await fetchData(`${GEOFENCE_API}?limit=-1`);
-      }
-
-      debugLog('Raw API response:', result);
-
-      const geofenceArray = ensureArray(result);
-      debugLog('Geofence array:', geofenceArray);
-
-      // Parse and normalize geofences
-      const parsed: Geofence[] = geofenceArray.map((gf: any) => {
-        const normalized = {
-          ...gf,
-          geofence_id: normalizeGeofenceId(gf),
-          definition: typeof gf.definition === 'string' 
-            ? JSON.parse(gf.definition) 
-            : gf.definition
-        };
-        debugLog('Normalized geofence:', normalized);
-        return normalized;
-      });
-
-      // Filter by user_id if we fetched all
-      const userGeofences = successfulQuery 
-        ? parsed 
-        : parsed.filter(gf => gf.user_id === userId);
-
-      debugLog('User geofences:', userGeofences);
-
-      const valid = userGeofences.filter(validateGeofence);
-      debugLog('Valid geofences:', valid);
-
+      const valid = parsed.filter(validateGeofence);
       setGeofences(valid);
       return valid;
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      debugLog('Error fetching geofences:', errorMessage);
-      setFetchError(`Failed to load geofences: ${errorMessage}`);
-      toast.error("Failed to load geofences. Please check console for details.");
+      console.error('Error fetching geofences:', error);
+      toast.error("Failed to load geofences");
       return [];
     }
   }, [fetchData]);
 
   const fetchVehicles = useCallback(async (userId: string) => {
     try {
-      debugLog('=== FETCHING VEHICLES ===');
-      debugLog('User ID:', userId);
+      const result = await fetchData(
+        `${VEHICLE_API}?filter[user_id][_eq]=${userId}&limit=-1`
+      );
       
-      // Try different query formats since the API might expect different parameter formats
-      const queries = [
-        `${VEHICLE_API}?filter[user_id][_eq]=${userId}`,
-        `${VEHICLE_API}?filter[user_id]=${userId}`,
-        `${VEHICLE_API}?user_id=${userId}`,
-        VEHICLE_API // Fallback: get all vehicles
-      ];
-      
-      let result = null;
-      let successfulUrl = '';
-      
-      for (const url of queries) {
-        try {
-          debugLog(`Trying URL: ${url}`);
-          const response = await fetch(url, {
-            method: 'GET',
-            headers: { 
-              'Content-Type': 'application/json',
-              'Accept': 'application/json'
-            }
-          });
-          
-          const responseText = await response.text();
-          debugLog(`Response status: ${response.status}`);
-          debugLog(`Response text preview: ${responseText.substring(0, 200)}...`);
-          
-          if (response.ok && responseText) {
-            result = JSON.parse(responseText);
-            successfulUrl = url;
-            debugLog(`Success with URL: ${url}`);
-            break;
-          }
-        } catch (e) {
-          debugLog(`Failed with URL ${url}:`, e);
-          continue;
-        }
-      }
-      
-      if (!result) {
-        throw new Error('Failed to fetch vehicles from all URLs');
-      }
-      
-      debugLog('Raw API response:', result);
+      if (!result) return [];
 
-      // Handle the response format from the API
-      let vehicleArray: Vehicle[] = [];
-      
-      if (result?.data && Array.isArray(result.data)) {
-        // Format: { data: [...] }
-        vehicleArray = result.data;
-        debugLog(`Found ${vehicleArray.length} vehicles in 'data' property`);
-      } else if (Array.isArray(result)) {
-        // Format: [...]
-        vehicleArray = result;
-        debugLog(`Found ${vehicleArray.length} vehicles as direct array`);
-      } else {
-        debugLog('Unexpected response format:', typeof result, result);
-      }
-
-      // Log all vehicles before filtering
-      debugLog('All vehicles before filtering:', vehicleArray.map(v => ({
-        vehicle_id: v.vehicle_id,
-        name: v.name,
-        user_id: v.user_id
-      })));
-
-      // Filter vehicles for current user
-      const userVehicles = vehicleArray.filter(v => {
-        const vehicleUserId = v.user_id?.toString().toLowerCase().trim();
-        const currentUserId = userId.toString().toLowerCase().trim();
-        const matches = vehicleUserId === currentUserId;
-        
-        debugLog(`Vehicle ${v.vehicle_id} (${v.name}): user_id="${v.user_id}" ${matches ? 'MATCHES' : 'does not match'} current="${userId}"`);
-        
-        return matches;
-      });
-
-      debugLog(`=== RESULT: Found ${userVehicles.length} vehicles for user ${userId} ===`);
-      
-      // If no vehicles found for user but we have vehicles in array, show warning
-      if (userVehicles.length === 0 && vehicleArray.length > 0) {
-        debugLog('WARNING: No vehicles found for current user, but found vehicles for other users');
-        debugLog('Current user ID:', userId);
-        debugLog('Vehicle user IDs:', [...new Set(vehicleArray.map(v => v.user_id))]);
-      }
-      
-      setVehicles(userVehicles);
-      return userVehicles;
+      const fetched: Vehicle[] = ensureArray(result);
+      setVehicles(fetched);
+      return fetched;
     } catch (error) {
-      debugLog('ERROR fetching vehicles:', error);
-      toast.error('Failed to load vehicles. Check console for details.');
+      console.error('Error fetching vehicles:', error);
+      toast.error('Failed to load vehicles');
       return [];
     }
-  }, []);
+  }, [fetchData]);
 
   const refreshData = useCallback(async (userId: string) => {
-    debugLog('Refreshing data for user:', userId);
     setLoading(true);
     try {
       await Promise.all([
@@ -446,7 +256,7 @@ export function GeofenceManager() {
     }
   };
 
-  const handleDrawCreated = (e: DrawCreatedEvent) => {
+  const handleDrawCreated = (e: any) => {
     setDrawnLayers([e.layer]);
     const layerType = e.layerType === 'circle' ? 'circle' : 'polygon';
     setNewGeofence(prev => ({ ...prev, type: layerType }));
@@ -504,31 +314,22 @@ export function GeofenceManager() {
         type: newGeofence.type,
         rule_type: newGeofence.ruleType,
         status: "active",
-        definition: JSON.stringify(definition), // Ensure it's stringified
+        definition,
         date_created: new Date().toISOString()
       };
 
-      debugLog('Saving geofence with payload:', payload);
-
-      const saveResult = await fetchData(GEOFENCE_API, { 
+      await fetchData(GEOFENCE_API, { 
         method: 'POST', 
         body: JSON.stringify(payload) 
       });
-
-      debugLog('Save result:', saveResult);
       
       toast.success("Geofence saved successfully!");
 
       setIsCreating(false);
       setDrawnLayers([]);
-      
-      // Force refresh data after a short delay
-      setTimeout(() => {
-        refreshData(userId);
-      }, 500);
-      
+      await refreshData(userId);
     } catch (error: any) {
-      debugLog('Error saving geofence:', error);
+      console.error('Error saving geofence:', error);
       toast.error(`Failed to save geofence: ${error.message}`);
     } finally {
       setLoading(false);
@@ -547,7 +348,7 @@ export function GeofenceManager() {
       
       await Promise.all(
         assignedVehicles.map(v =>
-          fetchData(`${VEHICLE_API_SINGLE}/${v.vehicle_id}`, {
+          fetchData(`${VEHICLE_API}/${v.vehicle_id}`, {
             method: 'PATCH',
             body: JSON.stringify({ geofence_id: null })
           })
@@ -566,7 +367,7 @@ export function GeofenceManager() {
         await refreshData(userId);
       }
     } catch (error: any) {
-      debugLog('Error deleting geofence:', error);
+      console.error('Error deleting geofence:', error);
       toast.error(`Failed to delete geofence: ${error.message}`);
     } finally {
       setLoading(false);
@@ -597,13 +398,13 @@ export function GeofenceManager() {
 
       await Promise.all([
         ...toAdd.map(id => 
-          fetchData(`${VEHICLE_API_SINGLE}/${id}`, {
+          fetchData(`${VEHICLE_API}/${id}`, {
             method: 'PATCH', 
             body: JSON.stringify({ geofence_id: geofenceId })
           })
         ),
         ...toRemove.map(id => 
-          fetchData(`${VEHICLE_API_SINGLE}/${id}`, {
+          fetchData(`${VEHICLE_API}/${id}`, {
             method: 'PATCH', 
             body: JSON.stringify({ geofence_id: null })
           })
@@ -618,20 +419,12 @@ export function GeofenceManager() {
         await fetchVehicles(userId);
       }
     } catch (error) {
-      debugLog('Error saving vehicle assignments:', error);
+      console.error('Error saving vehicle assignments:', error);
       toast.error('Failed to update vehicle assignments');
     } finally {
       setLoading(false);
     }
   }, [currentGeofence, vehicles, selectedVehicles, fetchData, fetchVehicles, currentUser]);
-
-  const toggleVehicleSelection = useCallback((vehicleId: string) => {
-    setSelectedVehicles(prev =>
-      prev.includes(vehicleId)
-        ? prev.filter(id => id !== vehicleId)
-        : [...prev, vehicleId]
-    );
-  }, []);
 
   // Computed values
   const filteredGeofences = useMemo(() => {
@@ -657,26 +450,19 @@ export function GeofenceManager() {
     const initializeData = async () => {
       try {
         const userJson = sessionStorage.getItem('user');
-        debugLog('User from session:', userJson);
-        
         if (userJson) {
           const user = JSON.parse(userJson);
           setCurrentUser(user);
           const userId = user.id || user.user_id;
-          
           if (userId) {
-            debugLog('Initializing with user ID:', userId);
             await refreshData(userId);
-          } else {
-            toast.error("User ID not found in session");
-            setLoading(false);
           }
         } else {
           toast.error("User session not found. Please login again.");
           setLoading(false);
         }
       } catch (error) {
-        debugLog('Error initializing data:', error);
+        console.error('Error initializing data:', error);
         toast.error("An error occurred while loading initial data.");
         setLoading(false);
       }
@@ -755,18 +541,6 @@ export function GeofenceManager() {
           )}
         </div>
       </div>
-
-      {/* Error Alert */}
-      {fetchError && (
-        <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start gap-3">
-          <AlertCircle className="h-5 w-5 text-red-600 flex-shrink-0 mt-0.5" />
-          <div className="flex-1">
-            <h4 className="font-semibold text-red-800">Error Loading Data</h4>
-            <p className="text-sm text-red-700 mt-1">{fetchError}</p>
-            <p className="text-xs text-red-600 mt-2">Check browser console for more details</p>
-          </div>
-        </div>
-      )}
 
       {/* Main Content */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6" style={{ minHeight: 'calc(100vh - 200px)' }}>
@@ -874,7 +648,7 @@ export function GeofenceManager() {
                   <h3 className="text-lg font-semibold text-slate-700 mb-2">
                     {searchTerm ? "No results found" : "No geofences yet"}
                   </h3>
-                  {!searchTerm && !isCreating && (
+                  {!searchTerm && (
                     <Button 
                       onClick={handleStartCreating} 
                       className="bg-gradient-to-r from-blue-500 to-indigo-600 text-white"
@@ -1003,12 +777,17 @@ export function GeofenceManager() {
                           ? 'bg-blue-50 border-blue-400' 
                           : 'bg-gray-50 border-gray-200 hover:bg-blue-50'
                       }`}
-                      onClick={() => toggleVehicleSelection(vehicle.vehicle_id.toString())}
+                      onClick={() => {
+                        setSelectedVehicles(prev =>
+                          prev.includes(vehicle.vehicle_id.toString())
+                            ? prev.filter(id => id !== vehicle.vehicle_id.toString())
+                            : [...prev, vehicle.vehicle_id.toString()]
+                        );
+                      }}
                     >
                       <Checkbox 
                         checked={isChecked}
-                        onCheckedChange={() => toggleVehicleSelection(vehicle.vehicle_id.toString())}
-                        onClick={(e) => e.stopPropagation()}
+                        onCheckedChange={() => {}}
                       />
                       <div className="flex-1">
                         <div className="font-medium text-gray-800">

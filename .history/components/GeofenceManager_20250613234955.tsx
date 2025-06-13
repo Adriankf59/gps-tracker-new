@@ -13,24 +13,15 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from 'sonner';
 import type { LatLngExpression } from 'leaflet';
 
-// Type for Leaflet Draw events
-interface DrawCreatedEvent {
-  layer: any;
-  layerType: string;
-}
-
 // Dynamic import with proper typing
-const MapWithDrawing = dynamic(
-  () => import('./MapWithDrawing').then((mod) => mod.default),
-  {
-    ssr: false,
-    loading: () => (
-      <div className="h-full flex items-center justify-center bg-gray-100 rounded-lg">
-        <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
-      </div>
-    )
-  }
-);
+const MapWithDrawing = dynamic(() => import('./MapWithDrawing'), {
+  ssr: false,
+  loading: () => (
+    <div className="h-full flex items-center justify-center bg-gray-100 rounded-lg">
+      <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+    </div>
+  )
+});
 
 // Import API configuration
 import { API_BASE_URL } from '../api/file';
@@ -187,11 +178,9 @@ export function GeofenceManager() {
 
   const abortRef = useRef<AbortController | null>(null);
 
-  // Debug logging function - only logs in development
+  // Debug logging function
   const debugLog = (message: string, data?: any) => {
-    if (process.env.NODE_ENV === 'development') {
-      console.log(`[GeofenceManager] ${message}`, data || '');
-    }
+    console.log(`[GeofenceManager] ${message}`, data || '');
   };
 
   // API functions with better error handling
@@ -446,7 +435,7 @@ export function GeofenceManager() {
     }
   };
 
-  const handleDrawCreated = (e: DrawCreatedEvent) => {
+  const handleDrawCreated = (e: any) => {
     setDrawnLayers([e.layer]);
     const layerType = e.layerType === 'circle' ? 'circle' : 'polygon';
     setNewGeofence(prev => ({ ...prev, type: layerType }));
@@ -625,14 +614,6 @@ export function GeofenceManager() {
     }
   }, [currentGeofence, vehicles, selectedVehicles, fetchData, fetchVehicles, currentUser]);
 
-  const toggleVehicleSelection = useCallback((vehicleId: string) => {
-    setSelectedVehicles(prev =>
-      prev.includes(vehicleId)
-        ? prev.filter(id => id !== vehicleId)
-        : [...prev, vehicleId]
-    );
-  }, []);
-
   // Computed values
   const filteredGeofences = useMemo(() => {
     if (!searchTerm.trim()) return geofences;
@@ -767,6 +748,65 @@ export function GeofenceManager() {
           </div>
         </div>
       )}
+
+      {/* Debug Info (always show in this case to debug vehicle issue) */}
+      <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg text-xs font-mono">
+        <p className="font-semibold text-yellow-800 mb-1">Debug Info:</p>
+        <p>User ID: {currentUser?.id || currentUser?.user_id || 'Not found'}</p>
+        <p>User Email: {currentUser?.email || 'Not found'}</p>
+        <p>Geofences loaded: {geofences.length}</p>
+        <p>Vehicles loaded: {vehicles.length}</p>
+        <p>Vehicle API: {VEHICLE_API}</p>
+        <p>Geofence API: {GEOFENCE_API}</p>
+        <p>Using Proxy: {useProxy ? 'Yes' : 'No'}</p>
+        {vehicles.length > 0 && (
+          <>
+            <details className="mt-2">
+              <summary className="cursor-pointer text-yellow-700">Show Vehicles</summary>
+              <pre className="mt-1 text-xxs overflow-auto max-h-32">
+                {JSON.stringify(vehicles.map(v => ({
+                  id: v.vehicle_id,
+                  name: v.name,
+                  user_id: v.user_id
+                })), null, 2)}
+              </pre>
+            </details>
+          </>
+        )}
+        <div className="mt-2">
+          <button
+            onClick={() => {
+              const userId = currentUser?.id || currentUser?.user_id;
+              if (userId) {
+                debugLog('Manual refresh triggered');
+                fetchVehicles(userId);
+              }
+            }}
+            className="px-2 py-1 bg-yellow-600 text-white rounded text-xs hover:bg-yellow-700"
+          >
+            Manual Fetch Vehicles
+          </button>
+          <button
+            onClick={() => {
+              // Test fetch without filter
+              debugLog('Testing fetch all vehicles...');
+              fetch(VEHICLE_API)
+                .then(res => res.json())
+                .then(data => {
+                  debugLog('All vehicles response:', data);
+                  if (data?.data) {
+                    debugLog('Total vehicles in system:', data.data.length);
+                    debugLog('All user IDs:', [...new Set(data.data.map((v: any) => v.user_id))]);
+                  }
+                })
+                .catch(err => debugLog('Error fetching all vehicles:', err));
+            }}
+            className="ml-2 px-2 py-1 bg-blue-600 text-white rounded text-xs hover:bg-blue-700"
+          >
+            Test Fetch All
+          </button>
+        </div>
+      </div>
 
       {/* Main Content */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6" style={{ minHeight: 'calc(100vh - 200px)' }}>
@@ -1003,12 +1043,17 @@ export function GeofenceManager() {
                           ? 'bg-blue-50 border-blue-400' 
                           : 'bg-gray-50 border-gray-200 hover:bg-blue-50'
                       }`}
-                      onClick={() => toggleVehicleSelection(vehicle.vehicle_id.toString())}
+                      onClick={() => {
+                        setSelectedVehicles(prev =>
+                          prev.includes(vehicle.vehicle_id.toString())
+                            ? prev.filter(id => id !== vehicle.vehicle_id.toString())
+                            : [...prev, vehicle.vehicle_id.toString()]
+                        );
+                      }}
                     >
                       <Checkbox 
                         checked={isChecked}
-                        onCheckedChange={() => toggleVehicleSelection(vehicle.vehicle_id.toString())}
-                        onClick={(e) => e.stopPropagation()}
+                        onCheckedChange={() => {}}
                       />
                       <div className="flex-1">
                         <div className="font-medium text-gray-800">

@@ -6,62 +6,37 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Shield, Search, Plus, MapPin, Trash2, Circle as CircleIcon, Square, Save, X, Car, Loader2, RefreshCw, AlertCircle } from "lucide-react";
+import { Shield, Search, Plus, MapPin, Trash2, Circle as CircleIcon, Square, Save, X, Car, Loader2, AlertCircle, RefreshCw } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from 'sonner';
-import type { LatLngExpression } from 'leaflet';
 
-// Type for Leaflet Draw events
-interface DrawCreatedEvent {
-  layer: any;
-  layerType: string;
-}
+const MapWithDrawing = dynamic(() => import('./MapWithDrawing'), {
+  ssr: false,
+  loading: () => <div className="h-full flex items-center justify-center bg-gray-100 rounded-lg"><Loader2 className="w-8 h-8 animate-spin text-blue-600" /></div>
+});
 
-// Dynamic import with proper typing
-const MapWithDrawing = dynamic(
-  () => import('./MapWithDrawing').then((mod) => mod.default),
-  {
-    ssr: false,
-    loading: () => (
-      <div className="h-full flex items-center justify-center bg-gray-100 rounded-lg">
-        <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
-      </div>
-    )
-  }
-);
-
-// Import API configuration
 import { API_BASE_URL } from '../api/file';
 
-// Use proxy endpoints to avoid mixed content
-const useProxy = typeof window !== 'undefined' && window.location.protocol === 'https:';
-
-// API endpoints - use local proxy for vehicles, direct for geofence
 const GEOFENCE_API = `${API_BASE_URL}/items/geofence`;
-const VEHICLE_API = useProxy ? '/api/vehicles' : `${API_BASE_URL}/items/vehicle`;
-const VEHICLE_API_SINGLE = useProxy ? '/api/vehicles' : `${API_BASE_URL}/items/vehicle`;
+const VEHICLE_API = `${API_BASE_URL}/items/vehicle`;
+const DEFAULT_CENTER: [number, number] = [-2.5, 118.0];
 
-const DEFAULT_CENTER: LatLngExpression = [-2.5, 118.0];
-
-// Type definitions
-export type GeofenceDefinition = {
-  type: 'Circle' | 'Polygon';
-  center?: [number, number];
-  radius?: number;
-  coordinates?: [number, number][][];
-};
-
+// FIX: 'type' dibutuhkan di level atas DAN di dalam 'definition'
 export type Geofence = {
-  id?: number; // Tambahan untuk handle kedua format
   geofence_id: number;
   name: string;
   status: 'active' | 'inactive';
   rule_type: 'FORBIDDEN' | 'STAY_IN' | 'STANDARD';
-  type: 'circle' | 'polygon';
+  type: 'circle' | 'polygon'; // Kembalikan properti ini
   date_created: string;
-  definition: GeofenceDefinition;
+  definition: {
+    type: 'Circle' | 'Polygon';
+    center?: [number, number];
+    radius?: number;
+    coordinates?: [number, number][][];
+  };
   user_id: string;
 };
 
@@ -75,61 +50,27 @@ export type Vehicle = {
   user_id: string;
 };
 
+
 type NewGeofenceState = {
   name: string;
   ruleType: "FORBIDDEN" | "STAY_IN" | "STANDARD";
   type: "polygon" | "circle";
 };
 
-type User = {
-  id?: string;
-  user_id?: string;
-  email?: string;
-};
-
 // Utility functions
-const ensureArray = (value: any): any[] => {
-  if (Array.isArray(value)) return value;
-  if (value?.data && Array.isArray(value.data)) return value.data;
-  return [];
-};
+const ensureArray = (value: any): any[] => Array.isArray(value) ? value : (value?.data || []);
 
-// Normalize geofence ID - handle both 'id' and 'geofence_id'
-const normalizeGeofenceId = (gf: any): number => {
-  return Number(gf.geofence_id || gf.id || 0);
-};
-
-const validateGeofence = (gf: any): gf is Geofence => {
+// FIX: Kembalikan pembacaan 'type' dari level atas
+const validateGeofence = (gf: Geofence): boolean => {
   if (!gf?.definition) return false;
-  
-  // Parse definition if it's a string
-  let definition = gf.definition;
-  if (typeof definition === 'string') {
-    try {
-      definition = JSON.parse(definition);
-    } catch {
-      return false;
-    }
-  }
-  
-  const { center, radius, coordinates } = definition;
-  
-  if (gf.type === 'circle') {
-    return Array.isArray(center) && center.length === 2 && 
-           typeof radius === 'number' && radius > 0;
-  }
-  
-  if (gf.type === 'polygon') {
-    return Array.isArray(coordinates) && 
-           coordinates.length > 0 && 
-           Array.isArray(coordinates[0]) && 
-           coordinates[0].length >= 4;
-  }
-  
-  return false;
+  const { center, radius, coordinates } = gf.definition;
+  return gf.type === 'circle'
+    ? center?.length === 2 && radius != null && radius > 0
+    : coordinates?.[0]?.length != null && coordinates[0].length >= 4;
 };
 
-const getGeofenceCenter = (geofence: Geofence | null): LatLngExpression => {
+// FIX: Kembalikan pembacaan 'type' dari level atas
+const getGeofenceCenter = (geofence: Geofence | null): [number, number] => {
   if (!geofence || !validateGeofence(geofence)) return DEFAULT_CENTER;
   
   if (geofence.type === 'circle' && geofence.definition.center) {
@@ -140,8 +81,8 @@ const getGeofenceCenter = (geofence: Geofence | null): LatLngExpression => {
   if (geofence.type === 'polygon' && geofence.definition.coordinates) {
     const coords = geofence.definition.coordinates[0];
     if (coords && coords.length > 0) {
-      const lat = coords.reduce((sum, c) => sum + c[1], 0) / coords.length;
-      const lng = coords.reduce((sum, c) => sum + c[0], 0) / coords.length;
+      const lat = coords.reduce((sum: number, c: number[]) => sum + c[1], 0) / coords.length;
+      const lng = coords.reduce((sum: number, c: number[]) => sum + c[0], 0) / coords.length;
       return [lat, lng];
     }
   }
@@ -149,285 +90,92 @@ const getGeofenceCenter = (geofence: Geofence | null): LatLngExpression => {
   return DEFAULT_CENTER;
 };
 
-const getStatusColor = (status: string): string => {
-  const colors: Record<string, string> = {
-    active: 'bg-emerald-100 text-emerald-800',
-    inactive: 'bg-slate-100 text-slate-700'
-  };
-  return colors[status] || 'bg-slate-100 text-slate-700';
-};
 
-const getRuleTypeColor = (type: string): string => {
-  const colors: Record<string, string> = {
-    FORBIDDEN: 'bg-rose-100 text-rose-800',
-    STAY_IN: 'bg-indigo-100 text-indigo-800',
-    STANDARD: 'bg-teal-100 text-teal-800'
-  };
-  return colors[type] || 'bg-gray-100 text-gray-700';
-};
+const getStatusColor = (status: string): string => ({
+  active: 'bg-emerald-100 text-emerald-800',
+  inactive: 'bg-slate-100 text-slate-700'
+}[status] || 'bg-slate-100 text-slate-700');
+
+const getRuleTypeColor = (type: string): string => ({
+  FORBIDDEN: 'bg-rose-100 text-rose-800',
+  STAY_IN: 'bg-indigo-100 text-indigo-800',
+  STANDARD: 'bg-teal-100 text-teal-800'
+}[type] || 'bg-gray-100 text-gray-700');
 
 export function GeofenceManager() {
-  // State management
+  // State
   const [currentGeofence, setCurrentGeofence] = useState<Geofence | null>(null);
   const [geofences, setGeofences] = useState<Geofence[]>([]);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [currentUser, setCurrentUser] = useState<any>(null);
   const [isCreating, setIsCreating] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [fetchError, setFetchError] = useState<string | null>(null);
   const [assignDialogOpen, setAssignDialogOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
-  const [newGeofence, setNewGeofence] = useState<NewGeofenceState>({ 
-    name: "", 
-    ruleType: "FORBIDDEN", 
-    type: "polygon" 
-  });
+  const [newGeofence, setNewGeofence] = useState<NewGeofenceState>({ name: "", ruleType: "FORBIDDEN", type: "polygon" });
   const [drawnLayers, setDrawnLayers] = useState<any[]>([]);
   const [selectedVehicles, setSelectedVehicles] = useState<string[]>([]);
 
   const abortRef = useRef<AbortController | null>(null);
 
-  // Debug logging function - only logs in development
-  const debugLog = (message: string, data?: any) => {
-    if (process.env.NODE_ENV === 'development') {
-      console.log(`[GeofenceManager] ${message}`, data || '');
-    }
-  };
-
-  // API functions with better error handling
+  // API functions
   const fetchData = useCallback(async (url: string, options: RequestInit = {}) => {
     try {
-      if (abortRef.current) {
-        abortRef.current.abort();
-      }
+      if (abortRef.current) abortRef.current.abort();
       abortRef.current = new AbortController();
-
-      debugLog('fetchData called with URL:', url);
-      debugLog('fetchData options:', options);
 
       const response = await fetch(url, {
         ...options,
         signal: abortRef.current.signal,
-        headers: { 
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-          ...options.headers 
-        }
+        headers: { 'Content-Type': 'application/json', ...options.headers }
       });
 
-      const responseText = await response.text();
-      debugLog('Response status:', response.status);
-      debugLog('Response headers:', response.headers);
-      debugLog('Response text (first 500 chars):', responseText.substring(0, 500));
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}, message: ${responseText}`);
-      }
-      
-      try {
-        const parsed = JSON.parse(responseText);
-        debugLog('Parsed response:', parsed);
-        return parsed;
-      } catch (e) {
-        debugLog('Failed to parse JSON:', e);
-        debugLog('Raw text was:', responseText);
-        return null;
-      }
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      return await response.json();
     } catch (error: any) {
-      if (error.name === 'AbortError') {
-        debugLog('Request aborted');
-        return null;
-      }
-      debugLog('Fetch error:', error);
-      throw error;
+      if (error.name !== 'AbortError') throw error;
+      return null;
     }
   }, []);
 
   const fetchGeofences = useCallback(async (userId: string) => {
     try {
-      setFetchError(null);
-      debugLog('Fetching geofences for user:', userId);
-      
-      // Try multiple query formats to ensure compatibility
-      const queries = [
-        `${GEOFENCE_API}?filter[user_id][_eq]=${userId}&limit=-1&sort=-date_created`,
-        `${GEOFENCE_API}?filter[user_id]=${userId}&limit=-1&sort=-date_created`,
-        `${GEOFENCE_API}?user_id=${userId}&limit=-1&sort=-date_created`
-      ];
+      const result = await fetchData(`${GEOFENCE_API}?filter[user_id][_eq]=${userId}&limit=-1&sort=-date_created`);
+      if (!result) return [];
 
-      let result = null;
-      let successfulQuery = '';
+      const parsed: Geofence[] = ensureArray(result).map((gf: any) => ({
+        ...gf,
+        geofence_id: Number(gf.geofence_id), 
+        definition: typeof gf.definition === 'string' ? JSON.parse(gf.definition) : gf.definition
+      }));
 
-      for (const query of queries) {
-        try {
-          debugLog('Trying query:', query);
-          result = await fetchData(query);
-          if (result) {
-            successfulQuery = query;
-            break;
-          }
-        } catch (e) {
-          debugLog('Query failed, trying next:', e);
-          continue;
-        }
-      }
-      
-      if (!result) {
-        // If all queries fail, try to get all geofences and filter client-side
-        debugLog('All queries failed, fetching all geofences');
-        result = await fetchData(`${GEOFENCE_API}?limit=-1`);
-      }
-
-      debugLog('Raw API response:', result);
-
-      const geofenceArray = ensureArray(result);
-      debugLog('Geofence array:', geofenceArray);
-
-      // Parse and normalize geofences
-      const parsed: Geofence[] = geofenceArray.map((gf: any) => {
-        const normalized = {
-          ...gf,
-          geofence_id: normalizeGeofenceId(gf),
-          definition: typeof gf.definition === 'string' 
-            ? JSON.parse(gf.definition) 
-            : gf.definition
-        };
-        debugLog('Normalized geofence:', normalized);
-        return normalized;
-      });
-
-      // Filter by user_id if we fetched all
-      const userGeofences = successfulQuery 
-        ? parsed 
-        : parsed.filter(gf => gf.user_id === userId);
-
-      debugLog('User geofences:', userGeofences);
-
-      const valid = userGeofences.filter(validateGeofence);
-      debugLog('Valid geofences:', valid);
-
+      const valid = parsed.filter(validateGeofence);
       setGeofences(valid);
       return valid;
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      debugLog('Error fetching geofences:', errorMessage);
-      setFetchError(`Failed to load geofences: ${errorMessage}`);
-      toast.error("Failed to load geofences. Please check console for details.");
+      toast.error("Failed to load geofences");
       return [];
     }
   }, [fetchData]);
 
   const fetchVehicles = useCallback(async (userId: string) => {
     try {
-      debugLog('=== FETCHING VEHICLES ===');
-      debugLog('User ID:', userId);
-      
-      // Try different query formats since the API might expect different parameter formats
-      const queries = [
-        `${VEHICLE_API}?filter[user_id][_eq]=${userId}`,
-        `${VEHICLE_API}?filter[user_id]=${userId}`,
-        `${VEHICLE_API}?user_id=${userId}`,
-        VEHICLE_API // Fallback: get all vehicles
-      ];
-      
-      let result = null;
-      let successfulUrl = '';
-      
-      for (const url of queries) {
-        try {
-          debugLog(`Trying URL: ${url}`);
-          const response = await fetch(url, {
-            method: 'GET',
-            headers: { 
-              'Content-Type': 'application/json',
-              'Accept': 'application/json'
-            }
-          });
-          
-          const responseText = await response.text();
-          debugLog(`Response status: ${response.status}`);
-          debugLog(`Response text preview: ${responseText.substring(0, 200)}...`);
-          
-          if (response.ok && responseText) {
-            result = JSON.parse(responseText);
-            successfulUrl = url;
-            debugLog(`Success with URL: ${url}`);
-            break;
-          }
-        } catch (e) {
-          debugLog(`Failed with URL ${url}:`, e);
-          continue;
-        }
-      }
-      
-      if (!result) {
-        throw new Error('Failed to fetch vehicles from all URLs');
-      }
-      
-      debugLog('Raw API response:', result);
+      const result = await fetchData(`${VEHICLE_API}?filter[user_id][_eq]=${userId}&limit=-1`);
+      if (!result) return [];
 
-      // Handle the response format from the API
-      let vehicleArray: Vehicle[] = [];
-      
-      if (result?.data && Array.isArray(result.data)) {
-        // Format: { data: [...] }
-        vehicleArray = result.data;
-        debugLog(`Found ${vehicleArray.length} vehicles in 'data' property`);
-      } else if (Array.isArray(result)) {
-        // Format: [...]
-        vehicleArray = result;
-        debugLog(`Found ${vehicleArray.length} vehicles as direct array`);
-      } else {
-        debugLog('Unexpected response format:', typeof result, result);
-      }
-
-      // Log all vehicles before filtering
-      debugLog('All vehicles before filtering:', vehicleArray.map(v => ({
-        vehicle_id: v.vehicle_id,
-        name: v.name,
-        user_id: v.user_id
-      })));
-
-      // Filter vehicles for current user
-      const userVehicles = vehicleArray.filter(v => {
-        const vehicleUserId = v.user_id?.toString().toLowerCase().trim();
-        const currentUserId = userId.toString().toLowerCase().trim();
-        const matches = vehicleUserId === currentUserId;
-        
-        debugLog(`Vehicle ${v.vehicle_id} (${v.name}): user_id="${v.user_id}" ${matches ? 'MATCHES' : 'does not match'} current="${userId}"`);
-        
-        return matches;
-      });
-
-      debugLog(`=== RESULT: Found ${userVehicles.length} vehicles for user ${userId} ===`);
-      
-      // If no vehicles found for user but we have vehicles in array, show warning
-      if (userVehicles.length === 0 && vehicleArray.length > 0) {
-        debugLog('WARNING: No vehicles found for current user, but found vehicles for other users');
-        debugLog('Current user ID:', userId);
-        debugLog('Vehicle user IDs:', [...new Set(vehicleArray.map(v => v.user_id))]);
-      }
-      
-      setVehicles(userVehicles);
-      return userVehicles;
+      const fetched: Vehicle[] = ensureArray(result);
+      setVehicles(fetched);
+      return fetched;
     } catch (error) {
-      debugLog('ERROR fetching vehicles:', error);
-      toast.error('Failed to load vehicles. Check console for details.');
+      toast.error('Failed to load vehicles');
       return [];
     }
-  }, []);
+  }, [fetchData]);
 
   const refreshData = useCallback(async (userId: string) => {
-    debugLog('Refreshing data for user:', userId);
     setLoading(true);
-    try {
-      await Promise.all([
-        fetchGeofences(userId), 
-        fetchVehicles(userId)
-      ]);
-    } finally {
-      setLoading(false);
-    }
+    await Promise.all([fetchGeofences(userId), fetchVehicles(userId)]);
+    setLoading(false);
   }, [fetchGeofences, fetchVehicles]);
 
   // Event handlers
@@ -441,15 +189,12 @@ export function GeofenceManager() {
   const handleCancelCreating = () => {
     setIsCreating(false);
     setDrawnLayers([]);
-    if (geofences.length > 0) {
-      setCurrentGeofence(geofences[0]);
-    }
+    if (geofences.length > 0) setCurrentGeofence(geofences[0]);
   };
 
-  const handleDrawCreated = (e: DrawCreatedEvent) => {
+  const handleDrawCreated = (e: any) => {
     setDrawnLayers([e.layer]);
-    const layerType = e.layerType === 'circle' ? 'circle' : 'polygon';
-    setNewGeofence(prev => ({ ...prev, type: layerType }));
+    setNewGeofence(prev => ({ ...prev, type: e.layerType === 'circle' ? 'circle' : 'polygon' }));
     toast.success(`${e.layerType === 'circle' ? 'Circle' : 'Polygon'} drawn successfully`);
   };
 
@@ -463,72 +208,38 @@ export function GeofenceManager() {
     try {
       const layer = drawnLayers[0];
       const userId = currentUser.id || currentUser.user_id;
-      
-      if (!userId) {
-        throw new Error("User ID not found");
-      }
-
-      let definition: GeofenceDefinition;
+      let definition;
 
       if (typeof layer.getRadius === 'function') {
-        // Circle
         const center = layer.getLatLng();
         const radius = layer.getRadius();
-        definition = { 
-          type: "Circle", 
-          center: [center.lng, center.lat], 
-          radius 
-        };
+        definition = { type: "Circle", center: [center.lng, center.lat], radius };
       } else {
-        // Polygon
         const latlngs = layer.getLatLngs();
-        const coords = (Array.isArray(latlngs[0]) ? latlngs[0] : latlngs)
-          .map((ll: any) => [ll.lng, ll.lat]);
-        
-        // Close the polygon if not already closed
-        if (coords.length > 0 && 
-            (coords[0][0] !== coords[coords.length - 1][0] || 
-             coords[0][1] !== coords[coords.length - 1][1])) {
+        const coords = (Array.isArray(latlngs[0]) ? latlngs[0] : latlngs).map((ll: any) => [ll.lng, ll.lat]);
+        if (coords.length > 0 && (coords[0][0] !== coords[coords.length - 1][0] || coords[0][1] !== coords[coords.length - 1][1])) {
           coords.push([...coords[0]]);
         }
-        
-        definition = { 
-          type: "Polygon", 
-          coordinates: [coords] 
-        };
+        definition = { type: "Polygon", coordinates: [coords] };
       }
 
       const payload = {
         user_id: userId,
         name: newGeofence.name.trim(),
-        type: newGeofence.type,
+        type: newGeofence.type, 
         rule_type: newGeofence.ruleType,
         status: "active",
-        definition: JSON.stringify(definition), // Ensure it's stringified
+        definition,
         date_created: new Date().toISOString()
       };
 
-      debugLog('Saving geofence with payload:', payload);
-
-      const saveResult = await fetchData(GEOFENCE_API, { 
-        method: 'POST', 
-        body: JSON.stringify(payload) 
-      });
-
-      debugLog('Save result:', saveResult);
-      
+      await fetchData(GEOFENCE_API, { method: 'POST', body: JSON.stringify(payload) });
       toast.success("Geofence saved successfully!");
 
       setIsCreating(false);
       setDrawnLayers([]);
-      
-      // Force refresh data after a short delay
-      setTimeout(() => {
-        refreshData(userId);
-      }, 500);
-      
+      await refreshData(userId);
     } catch (error: any) {
-      debugLog('Error saving geofence:', error);
       toast.error(`Failed to save geofence: ${error.message}`);
     } finally {
       setLoading(false);
@@ -540,33 +251,20 @@ export function GeofenceManager() {
 
     setLoading(true);
     try {
-      // Unassign vehicles first
-      const assignedVehicles = vehicles.filter(v => 
-        v.geofence_id?.toString() === geofenceId.toString()
-      );
-      
-      await Promise.all(
-        assignedVehicles.map(v =>
-          fetchData(`${VEHICLE_API_SINGLE}/${v.vehicle_id}`, {
-            method: 'PATCH',
-            body: JSON.stringify({ geofence_id: null })
-          })
-        )
-      );
+      const assignedVehicles = vehicles.filter(v => v.geofence_id?.toString() === geofenceId.toString());
+      await Promise.all(assignedVehicles.map(v =>
+        fetchData(`${VEHICLE_API}/${v.vehicle_id}`, {
+          method: 'PATCH',
+          body: JSON.stringify({ geofence_id: null })
+        })
+      ));
 
-      // Delete geofence
-      await fetchData(`${GEOFENCE_API}/${geofenceId}`, { 
-        method: 'DELETE' 
-      });
-      
+      await fetchData(`${GEOFENCE_API}/${geofenceId}`, { method: 'DELETE' });
       toast.success("Geofence deleted successfully");
 
       const userId = currentUser?.id || currentUser?.user_id;
-      if (userId) {
-        await refreshData(userId);
-      }
+      if (userId) await refreshData(userId);
     } catch (error: any) {
-      debugLog('Error deleting geofence:', error);
       toast.error(`Failed to delete geofence: ${error.message}`);
     } finally {
       setLoading(false);
@@ -596,49 +294,30 @@ export function GeofenceManager() {
       const toRemove = currentlyAssigned.filter(id => !selectedVehicles.includes(id));
 
       await Promise.all([
-        ...toAdd.map(id => 
-          fetchData(`${VEHICLE_API_SINGLE}/${id}`, {
-            method: 'PATCH', 
-            body: JSON.stringify({ geofence_id: geofenceId })
-          })
-        ),
-        ...toRemove.map(id => 
-          fetchData(`${VEHICLE_API_SINGLE}/${id}`, {
-            method: 'PATCH', 
-            body: JSON.stringify({ geofence_id: null })
-          })
-        )
+        ...toAdd.map(id => fetchData(`${VEHICLE_API}/${id}`, {
+          method: 'PATCH', body: JSON.stringify({ geofence_id: geofenceId })
+        })),
+        ...toRemove.map(id => fetchData(`${VEHICLE_API}/${id}`, {
+          method: 'PATCH', body: JSON.stringify({ geofence_id: null })
+        }))
       ]);
 
       toast.success('Vehicle assignments updated successfully');
       setAssignDialogOpen(false);
 
       const userId = currentUser?.id || currentUser?.user_id;
-      if (userId) {
-        await fetchVehicles(userId);
-      }
+      if (userId) await fetchVehicles(userId);
     } catch (error) {
-      debugLog('Error saving vehicle assignments:', error);
       toast.error('Failed to update vehicle assignments');
     } finally {
       setLoading(false);
     }
   }, [currentGeofence, vehicles, selectedVehicles, fetchData, fetchVehicles, currentUser]);
 
-  const toggleVehicleSelection = useCallback((vehicleId: string) => {
-    setSelectedVehicles(prev =>
-      prev.includes(vehicleId)
-        ? prev.filter(id => id !== vehicleId)
-        : [...prev, vehicleId]
-    );
-  }, []);
-
   // Computed values
   const filteredGeofences = useMemo(() => {
     if (!searchTerm.trim()) return geofences;
-    return geofences.filter(g => 
-      g.name.toLowerCase().includes(searchTerm.toLowerCase())
-    );
+    return geofences.filter(g => g.name.toLowerCase().includes(searchTerm.toLowerCase()));
   }, [geofences, searchTerm]);
 
   const displayedGeofences = useMemo(() => {
@@ -647,9 +326,7 @@ export function GeofenceManager() {
   }, [isCreating, currentGeofence, geofences]);
 
   const getAssignedCount = useCallback((geofenceId: number) => {
-    return vehicles.filter(v => 
-      v.geofence_id?.toString() === geofenceId.toString()
-    ).length;
+    return vehicles.filter(v => v.geofence_id?.toString() === geofenceId.toString()).length;
   }, [vehicles]);
 
   // Effects
@@ -657,28 +334,16 @@ export function GeofenceManager() {
     const initializeData = async () => {
       try {
         const userJson = sessionStorage.getItem('user');
-        debugLog('User from session:', userJson);
-        
         if (userJson) {
           const user = JSON.parse(userJson);
           setCurrentUser(user);
           const userId = user.id || user.user_id;
-          
-          if (userId) {
-            debugLog('Initializing with user ID:', userId);
-            await refreshData(userId);
-          } else {
-            toast.error("User ID not found in session");
-            setLoading(false);
-          }
+          if (userId) await refreshData(userId);
         } else {
           toast.error("User session not found. Please login again.");
-          setLoading(false);
         }
       } catch (error) {
-        debugLog('Error initializing data:', error);
         toast.error("An error occurred while loading initial data.");
-        setLoading(false);
       }
     };
 
@@ -691,24 +356,12 @@ export function GeofenceManager() {
     }
   }, [geofences, currentGeofence, isCreating, loading]);
 
-  // Cleanup effect
-  useEffect(() => {
-    return () => {
-      if (abortRef.current) {
-        abortRef.current.abort();
-      }
-    };
-  }, []);
-
-  // Loading state
   if (loading && !currentUser && geofences.length === 0) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-slate-50">
         <div className="text-center">
           <Loader2 className="w-12 h-12 animate-spin mx-auto mb-4 text-blue-600" />
-          <h3 className="text-lg font-semibold text-slate-800 mb-2">
-            Loading Geofence Manager
-          </h3>
+          <h3 className="text-lg font-semibold text-slate-800 mb-2">Loading Geofence Manager</h3>
         </div>
       </div>
     );
@@ -733,10 +386,7 @@ export function GeofenceManager() {
         </div>
         <div className="flex gap-2">
           <Button
-            onClick={() => {
-              const userId = currentUser?.id || currentUser?.user_id;
-              if (userId) refreshData(userId);
-            }}
+            onClick={() => currentUser && refreshData(currentUser.id || currentUser.user_id)}
             disabled={loading}
             variant="outline"
             className="border-blue-200 text-blue-700 hover:bg-blue-50"
@@ -745,28 +395,13 @@ export function GeofenceManager() {
             Refresh
           </Button>
           {!isCreating && (
-            <Button 
-              onClick={handleStartCreating} 
-              className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white"
-            >
+            <Button onClick={handleStartCreating} className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white">
               <Plus className="h-4 w-4 mr-2" />
               Add Geofence
             </Button>
           )}
         </div>
       </div>
-
-      {/* Error Alert */}
-      {fetchError && (
-        <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start gap-3">
-          <AlertCircle className="h-5 w-5 text-red-600 flex-shrink-0 mt-0.5" />
-          <div className="flex-1">
-            <h4 className="font-semibold text-red-800">Error Loading Data</h4>
-            <p className="text-sm text-red-700 mt-1">{fetchError}</p>
-            <p className="text-xs text-red-600 mt-2">Check browser console for more details</p>
-          </div>
-        </div>
-      )}
 
       {/* Main Content */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6" style={{ minHeight: 'calc(100vh - 200px)' }}>
@@ -802,9 +437,7 @@ export function GeofenceManager() {
                 />
                 <Select
                   value={newGeofence.ruleType}
-                  onValueChange={(value: "FORBIDDEN" | "STAY_IN" | "STANDARD") => 
-                    setNewGeofence({ ...newGeofence, ruleType: value })
-                  }
+                  onValueChange={(value: "FORBIDDEN" | "STAY_IN" | "STANDARD") => setNewGeofence({ ...newGeofence, ruleType: value })}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Select rule type" />
@@ -841,18 +474,10 @@ export function GeofenceManager() {
                     disabled={!newGeofence.name.trim() || drawnLayers.length === 0 || loading}
                     className="flex-1 bg-gradient-to-r from-emerald-500 to-teal-600 text-white"
                   >
-                    {loading ? (
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    ) : (
-                      <Save className="h-4 w-4 mr-2" />
-                    )}
+                    {loading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
                     Save
                   </Button>
-                  <Button 
-                    variant="outline" 
-                    onClick={handleCancelCreating} 
-                    className="flex-1"
-                  >
+                  <Button variant="outline" onClick={handleCancelCreating} className="flex-1">
                     <X className="h-4 w-4 mr-2" /> Cancel
                   </Button>
                 </div>
@@ -874,11 +499,8 @@ export function GeofenceManager() {
                   <h3 className="text-lg font-semibold text-slate-700 mb-2">
                     {searchTerm ? "No results found" : "No geofences yet"}
                   </h3>
-                  {!searchTerm && !isCreating && (
-                    <Button 
-                      onClick={handleStartCreating} 
-                      className="bg-gradient-to-r from-blue-500 to-indigo-600 text-white"
-                    >
+                  {!searchTerm && (
+                    <Button onClick={handleStartCreating} className="bg-gradient-to-r from-blue-500 to-indigo-600 text-white">
                       <Plus className="h-4 w-4 mr-2" />
                       Create Geofence
                     </Button>
@@ -901,9 +523,7 @@ export function GeofenceManager() {
                 >
                   <CardContent className="p-3">
                     <div className="flex items-start justify-between mb-2">
-                      <h3 className="font-semibold text-slate-800 truncate">
-                        {geofence.name}
-                      </h3>
+                      <h3 className="font-semibold text-slate-800 truncate">{geofence.name}</h3>
                       <Badge className={getStatusColor(geofence.status)}>
                         {geofence.status === 'active' ? '✅ Active' : '⏸️ Inactive'}
                       </Badge>
@@ -913,6 +533,7 @@ export function GeofenceManager() {
                       <Badge className={getRuleTypeColor(geofence.rule_type)}>
                         {geofence.rule_type}
                       </Badge>
+                      {/* FIX: Kembalikan pembacaan 'type' dari level atas */}
                       <Badge variant="outline">
                         {geofence.type === 'circle' ? '⭕ Circle' : '⬜ Polygon'}
                       </Badge>
@@ -981,7 +602,7 @@ export function GeofenceManager() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Car className="h-5 w-5 text-blue-600" />
-              Assign Vehicles to &quot;{currentGeofence?.name}&quot;
+              Assign Vehicles to "{currentGeofence?.name}"
             </DialogTitle>
           </DialogHeader>
 
@@ -999,21 +620,19 @@ export function GeofenceManager() {
                     <div
                       key={vehicle.vehicle_id}
                       className={`flex items-center space-x-3 p-3 rounded-lg border cursor-pointer ${
-                        isChecked 
-                          ? 'bg-blue-50 border-blue-400' 
-                          : 'bg-gray-50 border-gray-200 hover:bg-blue-50'
+                        isChecked ? 'bg-blue-50 border-blue-400' : 'bg-gray-50 border-gray-200 hover:bg-blue-50'
                       }`}
-                      onClick={() => toggleVehicleSelection(vehicle.vehicle_id.toString())}
+                      onClick={() => {
+                        setSelectedVehicles(prev =>
+                          prev.includes(vehicle.vehicle_id.toString())
+                            ? prev.filter(id => id !== vehicle.vehicle_id.toString())
+                            : [...prev, vehicle.vehicle_id.toString()]
+                        );
+                      }}
                     >
-                      <Checkbox 
-                        checked={isChecked}
-                        onCheckedChange={() => toggleVehicleSelection(vehicle.vehicle_id.toString())}
-                        onClick={(e) => e.stopPropagation()}
-                      />
+                      <Checkbox checked={isChecked} />
                       <div className="flex-1">
-                        <div className="font-medium text-gray-800">
-                          {vehicle.name}
-                        </div>
+                        <div className="font-medium text-gray-800">{vehicle.name}</div>
                         <div className="text-xs text-gray-500">
                           {vehicle.license_plate} • {vehicle.make} {vehicle.model}
                         </div>
@@ -1026,18 +645,11 @@ export function GeofenceManager() {
           </div>
 
           <DialogFooter>
-            <Button 
-              variant="outline" 
-              onClick={() => setAssignDialogOpen(false)}
-            >
+            <Button variant="outline" onClick={() => setAssignDialogOpen(false)}>
               Cancel
             </Button>
-            <Button 
-              onClick={saveVehicleAssignments} 
-              disabled={loading} 
-              className="bg-blue-600 text-white"
-            >
-              {loading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+            <Button onClick={saveVehicleAssignments} disabled={loading} className="bg-blue-600 text-white">
+              {loading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
               Save Assignment
             </Button>
           </DialogFooter>

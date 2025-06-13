@@ -13,24 +13,15 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from 'sonner';
 import type { LatLngExpression } from 'leaflet';
 
-// Type for Leaflet Draw events
-interface DrawCreatedEvent {
-  layer: any;
-  layerType: string;
-}
-
 // Dynamic import with proper typing
-const MapWithDrawing = dynamic(
-  () => import('./MapWithDrawing').then((mod) => mod.default),
-  {
-    ssr: false,
-    loading: () => (
-      <div className="h-full flex items-center justify-center bg-gray-100 rounded-lg">
-        <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
-      </div>
-    )
-  }
-);
+const MapWithDrawing = dynamic(() => import('./MapWithDrawing'), {
+  ssr: false,
+  loading: () => (
+    <div className="h-full flex items-center justify-center bg-gray-100 rounded-lg">
+      <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+    </div>
+  )
+});
 
 // Import API configuration
 import { API_BASE_URL } from '../api/file';
@@ -187,11 +178,9 @@ export function GeofenceManager() {
 
   const abortRef = useRef<AbortController | null>(null);
 
-  // Debug logging function - only logs in development
+  // Debug logging function
   const debugLog = (message: string, data?: any) => {
-    if (process.env.NODE_ENV === 'development') {
-      console.log(`[GeofenceManager] ${message}`, data || '');
-    }
+    console.log(`[GeofenceManager] ${message}`, data || '');
   };
 
   // API functions with better error handling
@@ -202,35 +191,29 @@ export function GeofenceManager() {
       }
       abortRef.current = new AbortController();
 
-      debugLog('fetchData called with URL:', url);
-      debugLog('fetchData options:', options);
+      debugLog('Fetching from URL:', url);
 
       const response = await fetch(url, {
         ...options,
         signal: abortRef.current.signal,
         headers: { 
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
+          'Content-Type': 'application/json', 
           ...options.headers 
         }
       });
 
       const responseText = await response.text();
       debugLog('Response status:', response.status);
-      debugLog('Response headers:', response.headers);
-      debugLog('Response text (first 500 chars):', responseText.substring(0, 500));
+      debugLog('Response text:', responseText);
 
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}, message: ${responseText}`);
       }
       
       try {
-        const parsed = JSON.parse(responseText);
-        debugLog('Parsed response:', parsed);
-        return parsed;
+        return JSON.parse(responseText);
       } catch (e) {
         debugLog('Failed to parse JSON:', e);
-        debugLog('Raw text was:', responseText);
         return null;
       }
     } catch (error: any) {
@@ -319,52 +302,14 @@ export function GeofenceManager() {
 
   const fetchVehicles = useCallback(async (userId: string) => {
     try {
-      debugLog('=== FETCHING VEHICLES ===');
-      debugLog('User ID:', userId);
+      debugLog('Fetching vehicles for user:', userId);
       
-      // Try different query formats since the API might expect different parameter formats
-      const queries = [
-        `${VEHICLE_API}?filter[user_id][_eq]=${userId}`,
-        `${VEHICLE_API}?filter[user_id]=${userId}`,
-        `${VEHICLE_API}?user_id=${userId}`,
-        VEHICLE_API // Fallback: get all vehicles
-      ];
+      // Build query URL
+      const url = `${VEHICLE_API}?user_id=${userId}`;
+      debugLog('Fetching vehicles from:', url);
       
-      let result = null;
-      let successfulUrl = '';
-      
-      for (const url of queries) {
-        try {
-          debugLog(`Trying URL: ${url}`);
-          const response = await fetch(url, {
-            method: 'GET',
-            headers: { 
-              'Content-Type': 'application/json',
-              'Accept': 'application/json'
-            }
-          });
-          
-          const responseText = await response.text();
-          debugLog(`Response status: ${response.status}`);
-          debugLog(`Response text preview: ${responseText.substring(0, 200)}...`);
-          
-          if (response.ok && responseText) {
-            result = JSON.parse(responseText);
-            successfulUrl = url;
-            debugLog(`Success with URL: ${url}`);
-            break;
-          }
-        } catch (e) {
-          debugLog(`Failed with URL ${url}:`, e);
-          continue;
-        }
-      }
-      
-      if (!result) {
-        throw new Error('Failed to fetch vehicles from all URLs');
-      }
-      
-      debugLog('Raw API response:', result);
+      const result = await fetchData(url);
+      debugLog('Raw vehicle API response:', result);
 
       // Handle the response format from the API
       let vehicleArray: Vehicle[] = [];
@@ -372,50 +317,34 @@ export function GeofenceManager() {
       if (result?.data && Array.isArray(result.data)) {
         // Format: { data: [...] }
         vehicleArray = result.data;
-        debugLog(`Found ${vehicleArray.length} vehicles in 'data' property`);
+        debugLog('Found vehicles in data property:', vehicleArray.length);
       } else if (Array.isArray(result)) {
         // Format: [...]
         vehicleArray = result;
-        debugLog(`Found ${vehicleArray.length} vehicles as direct array`);
+        debugLog('Found vehicles as array:', vehicleArray.length);
       } else {
-        debugLog('Unexpected response format:', typeof result, result);
+        debugLog('Unexpected vehicle response format:', result);
       }
 
-      // Log all vehicles before filtering
-      debugLog('All vehicles before filtering:', vehicleArray.map(v => ({
-        vehicle_id: v.vehicle_id,
-        name: v.name,
-        user_id: v.user_id
-      })));
-
-      // Filter vehicles for current user
+      // Filter to ensure we only show vehicles for current user
       const userVehicles = vehicleArray.filter(v => {
-        const vehicleUserId = v.user_id?.toString().toLowerCase().trim();
-        const currentUserId = userId.toString().toLowerCase().trim();
-        const matches = vehicleUserId === currentUserId;
-        
-        debugLog(`Vehicle ${v.vehicle_id} (${v.name}): user_id="${v.user_id}" ${matches ? 'MATCHES' : 'does not match'} current="${userId}"`);
-        
-        return matches;
+        const vehicleUserId = v.user_id?.toString();
+        const currentUserId = userId.toString();
+        debugLog(`Comparing vehicle user_id: ${vehicleUserId} with current: ${currentUserId}`);
+        return vehicleUserId === currentUserId;
       });
 
-      debugLog(`=== RESULT: Found ${userVehicles.length} vehicles for user ${userId} ===`);
-      
-      // If no vehicles found for user but we have vehicles in array, show warning
-      if (userVehicles.length === 0 && vehicleArray.length > 0) {
-        debugLog('WARNING: No vehicles found for current user, but found vehicles for other users');
-        debugLog('Current user ID:', userId);
-        debugLog('Vehicle user IDs:', [...new Set(vehicleArray.map(v => v.user_id))]);
-      }
+      debugLog('Filtered user vehicles:', userVehicles.length);
+      debugLog('User vehicles details:', userVehicles);
       
       setVehicles(userVehicles);
       return userVehicles;
     } catch (error) {
-      debugLog('ERROR fetching vehicles:', error);
+      debugLog('Error fetching vehicles:', error);
       toast.error('Failed to load vehicles. Check console for details.');
       return [];
     }
-  }, []);
+  }, [fetchData]);
 
   const refreshData = useCallback(async (userId: string) => {
     debugLog('Refreshing data for user:', userId);
@@ -446,7 +375,7 @@ export function GeofenceManager() {
     }
   };
 
-  const handleDrawCreated = (e: DrawCreatedEvent) => {
+  const handleDrawCreated = (e: any) => {
     setDrawnLayers([e.layer]);
     const layerType = e.layerType === 'circle' ? 'circle' : 'polygon';
     setNewGeofence(prev => ({ ...prev, type: layerType }));
@@ -625,14 +554,6 @@ export function GeofenceManager() {
     }
   }, [currentGeofence, vehicles, selectedVehicles, fetchData, fetchVehicles, currentUser]);
 
-  const toggleVehicleSelection = useCallback((vehicleId: string) => {
-    setSelectedVehicles(prev =>
-      prev.includes(vehicleId)
-        ? prev.filter(id => id !== vehicleId)
-        : [...prev, vehicleId]
-    );
-  }, []);
-
   // Computed values
   const filteredGeofences = useMemo(() => {
     if (!searchTerm.trim()) return geofences;
@@ -767,6 +688,30 @@ export function GeofenceManager() {
           </div>
         </div>
       )}
+
+      {/* Debug Info (always show in this case to debug vehicle issue) */}
+      <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg text-xs font-mono">
+        <p className="font-semibold text-yellow-800 mb-1">Debug Info:</p>
+        <p>User ID: {currentUser?.id || currentUser?.user_id || 'Not found'}</p>
+        <p>User Email: {currentUser?.email || 'Not found'}</p>
+        <p>Geofences loaded: {geofences.length}</p>
+        <p>Vehicles loaded: {vehicles.length}</p>
+        <p>Vehicle API: {VEHICLE_API}</p>
+        <p>Geofence API: {GEOFENCE_API}</p>
+        <p>Using Proxy: {useProxy ? 'Yes' : 'No'}</p>
+        {vehicles.length > 0 && (
+          <details className="mt-2">
+            <summary className="cursor-pointer text-yellow-700">Show Vehicles</summary>
+            <pre className="mt-1 text-xxs overflow-auto max-h-32">
+              {JSON.stringify(vehicles.map(v => ({
+                id: v.vehicle_id,
+                name: v.name,
+                user_id: v.user_id
+              })), null, 2)}
+            </pre>
+          </details>
+        )}
+      </div>
 
       {/* Main Content */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6" style={{ minHeight: 'calc(100vh - 200px)' }}>
@@ -1003,12 +948,17 @@ export function GeofenceManager() {
                           ? 'bg-blue-50 border-blue-400' 
                           : 'bg-gray-50 border-gray-200 hover:bg-blue-50'
                       }`}
-                      onClick={() => toggleVehicleSelection(vehicle.vehicle_id.toString())}
+                      onClick={() => {
+                        setSelectedVehicles(prev =>
+                          prev.includes(vehicle.vehicle_id.toString())
+                            ? prev.filter(id => id !== vehicle.vehicle_id.toString())
+                            : [...prev, vehicle.vehicle_id.toString()]
+                        );
+                      }}
                     >
                       <Checkbox 
                         checked={isChecked}
-                        onCheckedChange={() => toggleVehicleSelection(vehicle.vehicle_id.toString())}
-                        onClick={(e) => e.stopPropagation()}
+                        onCheckedChange={() => {}}
                       />
                       <div className="flex-1">
                         <div className="font-medium text-gray-800">
