@@ -147,7 +147,7 @@ const LandingPage = () => {
               {/* Auth Section - Separated with divider */}
               <div className="flex items-center gap-3 ml-8">
                 <Link href="/login" passHref>
-                  <Button variant="ghost" className="text-slate-600 hover:text-blue-600">
+                  <Button variant="ghost" className=text-slate-600 hover:text-blue-600">
                     Log in
                   </Button>
                 </Link>
@@ -224,7 +224,7 @@ const LandingPage = () => {
                   <Link href="/login" passHref>
                     <Button 
                       variant="outline" 
-                      className="bg-white w-full justify-center border-slate-300 text-slate-600 hover:border-blue-600 hover:text-blue-600"
+                      className="w-full justify-center border-slate-300 text-slate-600 hover:border-blue-600 hover:text-blue-600"
                       onClick={() => setIsMobileMenuOpen(false)}
                     >
                       Log in

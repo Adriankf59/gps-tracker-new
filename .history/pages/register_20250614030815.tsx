@@ -13,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { 
   MapPin, Eye, EyeOff, Loader2, CheckCircle, XCircle, Shield, 
   Mail, Phone, User, Lock, ArrowRight, AlertCircle, Calendar,
-  Building2, Home, CreditCard, Info, Circle, Car
+  Building2, Home, CreditCard, Info
 } from "lucide-react";
 import { toast } from "sonner";
 import { v4 as uuidv4 } from 'uuid';
@@ -593,7 +593,7 @@ const RegisterPage = () => {
                         {passwordCriteria[key as keyof PasswordCriteria] ? (
                           <CheckCircle className="w-3 h-3 text-green-500" />
                         ) : (
-                          <Circle className="w-3 h-3 text-gray-300" />
+                          <CircleIcon className="w-3 h-3 text-gray-300" />
                         )}
                         <span className={passwordCriteria[key as keyof PasswordCriteria] ? 'text-green-700' : 'text-gray-500'}>
                           {text}

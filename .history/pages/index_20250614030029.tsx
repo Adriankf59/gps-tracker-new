@@ -55,7 +55,7 @@ const LandingPage = () => {
     {
       name: "Budi Santoso",
       company: "PT Logistik Prima",
-      text: "Sejak menggunakan Vehitrack, efisiensi armada kami meningkat 35%. ROI tercapai dalam 3 bulan!",
+      text: "Sejak menggunakan Vehitack, efisiensi armada kami meningkat 35%. ROI tercapai dalam 3 bulan!",
       rating: 5
     },
     {
@@ -111,7 +111,7 @@ const LandingPage = () => {
                 </div>
                 <div>
                   <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-blue-800 bg-clip-text text-transparent">
-                    Vehitrack
+                    Vehitack
                   </h1>
                   <p className="text-xs text-slate-500 hidden sm:block">Vehicle Management System</p>
                 </div>
@@ -224,7 +224,7 @@ const LandingPage = () => {
                   <Link href="/login" passHref>
                     <Button 
                       variant="outline" 
-                      className="bg-white w-full justify-center border-slate-300 text-slate-600 hover:border-blue-600 hover:text-blue-600"
+                      className="w-full justify-center border-slate-300 text-slate-600 hover:border-blue-600 hover:text-blue-600"
                       onClick={() => setIsMobileMenuOpen(false)}
                     >
                       Log in
@@ -496,7 +496,7 @@ const LandingPage = () => {
                 <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-blue-700 rounded-xl flex items-center justify-center">
                   <MapPin className="w-6 h-6 text-white" />
                 </div>
-                <span className="text-2xl font-bold">Vehitrack</span>
+                <span className="text-2xl font-bold">Vehitack</span>
               </div>
               <p className="text-slate-400 mb-4 max-w-md">
                 Solusi manajemen kendaraan terdepan dengan teknologi AI dan IoT untuk efisiensi maksimal armada Anda.
@@ -553,7 +553,7 @@ const LandingPage = () => {
 
           {/* Bottom Footer */}
           <div className="border-t border-slate-800 pt-8 flex flex-col md:flex-row justify-between items-center text-slate-400">
-            <p>© 2024 Vehitrack. All rights reserved.</p>
+            <p>© 2024 Vehitack. All rights reserved.</p>
             <div className="flex gap-6 mt-4 md:mt-0">
               <Link href="/sitemap" className="hover:text-white transition-colors">Sitemap</Link>
               <Link href="/accessibility" className="hover:text-white transition-colors">Accessibility</Link>
