@@ -271,7 +271,7 @@ export default async function handler(
     };
 
     // Test connection ke endpoint users
-    const apiUrl = process.env.API_URL;
+    const apiUrl = 'https://vehitrack.my.id/directus/items';
     
     if (!apiUrl) {
       return res.status(500).json({

@@ -1388,59 +1388,7 @@ export function GeofenceManager() {
     }
     
     // Cleanup function
-    // 🆕 Show initial loading screen while fetching data
-  if (uiState.initialLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-center max-w-md mx-auto p-8">
-          <div className="relative mb-6">
-            <div className="w-16 h-16 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin mx-auto"></div>
-            <div className="absolute inset-0 flex items-center justify-center">
-              <MapPin className="w-6 h-6 text-blue-600" />
-            </div>
-          </div>
-          
-          <h2 className="text-xl font-semibold text-gray-800 mb-2">
-            Loading Geofence Manager
-          </h2>
-          
-          <p className="text-gray-600 mb-4">
-            Fetching your geofences and vehicle data...
-          </p>
-          
-          <div className="text-sm text-gray-500">
-            {currentUser ? (
-              <>
-                <div className="mb-2">User: {currentUser.email || currentUser.username || 'Unknown'}</div>
-                <div>Please wait while we load your data</div>
-              </>
-            ) : (
-              <div>Waiting for user authentication...</div>
-            )}
-          </div>
-          
-          {/* Progress indicators */}
-          <div className="mt-6 space-y-2">
-            <div className="flex items-center justify-center text-xs text-gray-500">
-              <div className="w-2 h-2 bg-blue-600 rounded-full mr-2 animate-pulse"></div>
-              Connecting to server...
-            </div>
-            <div className="flex items-center justify-center text-xs text-gray-500">
-              <div className="w-2 h-2 bg-blue-400 rounded-full mr-2 animate-pulse" style={{ animationDelay: '0.2s' }}></div>
-              Loading geofences...
-            </div>
-            <div className="flex items-center justify-center text-xs text-gray-500">
-              <div className="w-2 h-2 bg-blue-300 rounded-full mr-2 animate-pulse" style={{ animationDelay: '0.4s' }}></div>
-              Loading vehicles...
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // 🆕 Main UI renders only after initial data is loaded
-  return () => {
+    return () => {
       if (debounceTimeoutRef.current) {
         clearTimeout(debounceTimeoutRef.current);
       }

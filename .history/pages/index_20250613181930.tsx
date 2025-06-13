@@ -458,47 +458,6 @@ const LandingPage = () => {
       {/* Enhanced Footer */}
       <footer className="bg-slate-900 text-white py-16 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto">
-          <div className="grid md:grid-cols-4 gap-8 mb-8">
-            <div className="md:col-span-2">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-blue-700 rounded-xl flex items-center justify-center">
-                  <MapPin className="w-6 h-6 text-white" />
-                </div>
-                <span className="text-2xl font-bold">Vehitrack</span>
-              </div>
-              <p className="text-slate-400 mb-4 max-w-md">
-                Solusi manajemen kendaraan terdepan dengan teknologi AI dan IoT untuk efisiensi maksimal armada Anda.
-              </p>
-              <div className="flex gap-4">
-                <Button variant="ghost" size="sm" className="text-slate-400 hover:text-white">
-                  Facebook
-                </Button>
-                <Button variant="ghost" size="sm" className="text-slate-400 hover:text-white">
-                  Twitter
-                </Button>
-                <Button variant="ghost" size="sm" className="text-slate-400 hover:text-white">
-                  LinkedIn
-                </Button>
-              </div>
-            </div>
-            <div>
-              <h4 className="font-semibold mb-4">Produk</h4>
-              <ul className="space-y-2 text-slate-400">
-                <li><Link href="/features" className="hover:text-white transition-colors">Fitur</Link></li>
-                <li><Link href="/pricing" className="hover:text-white transition-colors">Harga</Link></li>
-                <li><Link href="/api" className="hover:text-white transition-colors">API</Link></li>
-              </ul>
-            </div>
-            <div>
-              <h4 className="font-semibold mb-4">Support</h4>
-              <ul className="space-y-2 text-slate-400">
-                <li><Link href="/help" className="hover:text-white transition-colors">Bantuan</Link></li>
-                <li><Link href="/contact" className="hover:text-white transition-colors">Kontak</Link></li>
-                <li><Link href="/privacy" className="hover:text-white transition-colors">Privacy</Link></li>
-                <li><Link href="/terms" className="hover:text-white transition-colors">Terms</Link></li>
-              </ul>
-            </div>
-          </div>
           <div className="border-t border-slate-800 pt-8 text-center text-slate-400">
             <p>© 2024 Vehitrack. Semua hak dilindungi undang-undang.</p>
           </div>

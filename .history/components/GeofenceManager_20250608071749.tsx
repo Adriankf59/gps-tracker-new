@@ -277,7 +277,7 @@ export function GeofenceManager() {
   const isInitialLoadRef = useRef(true);
   const saveRetryTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  // 🔧 Enhanced API functions with completely separate controllers for save operations
+  // 🔧 Enhanced API functions with better abort controller management
   const fetchWithErrorHandling = useCallback(async (url: string, options?: RequestInit) => {
     try {
       console.log('🌐 Making API request:', {
@@ -287,26 +287,26 @@ export function GeofenceManager() {
         bodyLength: options?.body ? (options.body as string).length : 0
       });
 
+      // 🆕 Create new controller for each request
+      const currentController = new AbortController();
+      
+      // 🆕 Only abort GET requests, and only if not currently saving
       const isGetRequest = !options?.method || options.method === 'GET';
       const isSaveRequest = options?.method === 'POST';
       
-      let currentController: AbortController;
-      
-      if (isSaveRequest) {
-        // 🆕 For save operations, NEVER use shared abort controller
-        currentController = new AbortController();
-        console.log('💾 Using dedicated controller for save operation');
-      } else if (isGetRequest) {
-        // Only abort previous GET requests
+      if (isGetRequest && !uiState.savingInProgress) {
+        // Only abort previous GET requests if not saving
         if (fetchAbortControllerRef.current) {
           console.log('🛑 Aborting previous GET request');
           fetchAbortControllerRef.current.abort();
         }
-        currentController = new AbortController();
         fetchAbortControllerRef.current = currentController;
-      } else {
-        // For other requests
-        currentController = new AbortController();
+      } else if (isSaveRequest) {
+        // For save operations, use separate controller
+        if (saveAbortControllerRef.current) {
+          saveAbortControllerRef.current.abort();
+        }
+        saveAbortControllerRef.current = currentController;
       }
       
       const requestOptions = {
@@ -325,118 +325,49 @@ export function GeofenceManager() {
         bodyPreview: options?.body ? (options.body as string).substring(0, 200) + '...' : null,
         isGetRequest,
         isSaveRequest,
-        savingInProgress: uiState.savingInProgress,
-        hasSignal: !!requestOptions.signal
+        savingInProgress: uiState.savingInProgress
       });
 
-      // 🆕 No timeout for save operations to prevent interruption
-      if (isSaveRequest) {
-        console.log('💾 Save request - no timeout applied');
-        const response = await fetch(url, requestOptions);
-        
-        console.log('📥 Save Response received:', {
-          status: response.status,
-          statusText: response.statusText,
-          ok: response.ok,
-          headers: Object.fromEntries(response.headers.entries())
-        });
-        
-        if (!response.ok) {
-          let errorData;
-          try {
-            errorData = await response.json();
-          } catch (parseError) {
-            console.error('Failed to parse save error response as JSON:', parseError);
-            errorData = { message: response.statusText };
-          }
-          
-          console.error('❌ Save API Error Response:', {
-            status: response.status,
-            statusText: response.statusText,
-            errorData
-          });
-          
-          throw new Error(errorData.message || `HTTP ${response.status}: ${response.statusText}`);
-        }
-        
-        const responseData = await response.json();
-        console.log('✅ Save response data:', {
-          rawResponse: responseData,
-          dataType: typeof responseData,
-          keys: Object.keys(responseData),
-          hasData: !!responseData.data,
-          dataKeys: responseData.data ? Object.keys(responseData.data) : null
-        });
-        
-        return responseData;
-      } else {
-        // For GET requests, apply timeout
-        const timeoutDuration = REQUEST_TIMEOUT;
-        
-        const timeoutPromise = new Promise((_, reject) => {
-          setTimeout(() => reject(new Error(`Request timeout after ${timeoutDuration/1000} seconds`)), timeoutDuration);
-        });
+      // 🆕 Different timeout handling for POST vs GET
+      const timeoutDuration = options?.method === 'POST' ? 60000 : REQUEST_TIMEOUT; // 60s for POST, 30s for GET
+      
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error(`Request timeout after ${timeoutDuration/1000} seconds`)), timeoutDuration);
+      });
 
-        const fetchPromise = fetch(url, requestOptions);
+      const fetchPromise = fetch(url, requestOptions);
+      
+      const response = await Promise.race([fetchPromise, timeoutPromise]) as Response;
+      
+      console.log('📥 Response received:', {
+        status: response.status,
+        statusText: response.statusText,
+        ok: response.ok,
+        headers: Object.fromEntries(response.headers.entries())
+      });
+      
+      if (!response.ok) {
+        let errorData;
+        try {
+          errorData = await response.json();
+        } catch (parseError) {
+          console.error('Failed to parse error response as JSON:', parseError);
+          errorData = { message: response.statusText };
+        }
         
-        const response = await Promise.race([fetchPromise, timeoutPromise]) as Response;
-        
-        console.log('📥 Response received:', {
+        console.error('❌ API Error Response:', {
           status: response.status,
           statusText: response.statusText,
-          ok: response.ok,
-          headers: Object.fromEntries(response.headers.entries())
+          errorData
         });
         
-        if (!response.ok) {
-          let errorData;
-          try {
-            const responseText = await response.text();
-            if (responseText.trim()) {
-              errorData = JSON.parse(responseText);
-            } else {
-              errorData = { message: response.statusText };
-            }
-          } catch (parseError) {
-            console.error('Failed to parse error response as JSON:', parseError);
-            errorData = { message: response.statusText };
-          }
-          
-          console.error('❌ API Error Response:', {
-            status: response.status,
-            statusText: response.statusText,
-            errorData
-          });
-          
-          throw new Error(errorData.message || `HTTP ${response.status}: ${response.statusText}`);
-        }
-        
-        // 🆕 Handle different response types safely
-        const responseText = await response.text();
-        
-        if (!responseText || responseText.trim() === '') {
-          console.log('📝 Empty response received (common for DELETE operations)');
-          return { success: true, empty: true };
-        }
-        
-        let responseData;
-        try {
-          responseData = JSON.parse(responseText);
-        } catch (parseError) {
-          console.warn('⚠️ Response is not valid JSON, treating as text:', responseText);
-          return { success: true, data: responseText };
-        }
-        
-        console.log('✅ Successful response data:', {
-          rawResponse: responseData,
-          dataType: typeof responseData,
-          keys: Object.keys(responseData),
-          hasData: !!responseData.data,
-          dataKeys: responseData.data ? Object.keys(responseData.data) : null
-        });
-        
-        return responseData;
+        throw new Error(errorData.message || `HTTP ${response.status}: ${response.statusText}`);
       }
+      
+      const responseData = await response.json();
+      console.log('✅ Successful response data:', responseData);
+      
+      return responseData;
     } catch (error: any) {
       if (error.name === 'AbortError') {
         console.log('⏹️ Request was aborted');
@@ -455,111 +386,27 @@ export function GeofenceManager() {
     }
   }, [uiState.savingInProgress]);
 
-  // 🆕 Dedicated save function that completely bypasses abort controller system
+  // 🆕 Dedicated save function with enhanced error handling
   const saveGeofenceToAPI = useCallback(async (payload: any) => {
     try {
-      console.log('💾 Starting dedicated save operation...', payload);
+      console.log('💾 Saving geofence to API...', payload);
       
-      // 🆕 Direct fetch without any abort controller interference
-      const response = await fetch(GEOFENCE_API_ENDPOINT, {
+      const result = await fetchWithErrorHandling(GEOFENCE_API_ENDPOINT, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Cache-Control': 'no-cache',
-        },
         body: JSON.stringify(payload)
       });
       
-      console.log('📥 Direct save response:', {
-        status: response.status,
-        statusText: response.statusText,
-        ok: response.ok,
-        url: response.url
-      });
-      
-      if (!response.ok) {
-        let errorData;
-        try {
-          const responseText = await response.text();
-          if (responseText.trim()) {
-            errorData = JSON.parse(responseText);
-          } else {
-            errorData = { message: response.statusText };
-          }
-        } catch (parseError) {
-          console.error('Failed to parse error response:', parseError);
-          errorData = { message: response.statusText };
-        }
-        
-        console.error('❌ API Error Response:', {
-          status: response.status,
-          statusText: response.statusText,
-          errorData
-        });
-        
-        throw new Error(errorData.message || `HTTP ${response.status}: ${response.statusText}`);
+      if (!result) {
+        throw new Error('API returned null response');
       }
       
-      // 🆕 Handle different response types - some DELETE operations return empty responses
-      const responseText = await response.text();
-      
-      if (!responseText || responseText.trim() === '') {
-        console.log('📝 Empty response received (common for DELETE operations)');
-        return { success: true, empty: true };
-      }
-      
-      let responseData;
-      try {
-        responseData = JSON.parse(responseText);
-      } catch (parseError) {
-        console.warn('⚠️ Failed to parse response as JSON, treating as text:', responseText);
-        return { success: true, data: responseText };
-      }
-      
-      console.log('✅ Save response data:', {
-        rawResponse: responseData,
-        dataType: typeof responseData,
-        keys: Object.keys(responseData),
-        hasData: !!responseData.data,
-        dataKeys: responseData.data ? Object.keys(responseData.data) : null
-      });
-      
-      return responseData;
-      
-      // 🆕 Enhanced response parsing - handle different response formats
-      let savedGeofenceId = null;
-      
-      if (responseData.geofence_id) {
-        savedGeofenceId = responseData.geofence_id;
-      } else if (responseData.data && responseData.data.geofence_id) {
-        savedGeofenceId = responseData.data.geofence_id;
-      } else if (responseData.id) {
-        savedGeofenceId = responseData.id;
-      } else if (responseData.data && responseData.data.id) {
-        savedGeofenceId = responseData.data.id;
-      } else if (typeof responseData === 'object' && Object.keys(responseData).length > 0) {
-        // If response is an object but doesn't have expected ID fields,
-        // assume save was successful and we'll find it in the next fetch
-        console.log('🔍 Save response doesn\'t contain obvious ID field, but appears successful');
-        return { success: true, data: responseData };
-      }
-      
-      if (savedGeofenceId) {
-        console.log('✅ Extracted geofence ID from response:', savedGeofenceId);
-        return { success: true, geofence_id: savedGeofenceId, data: responseData };
-      } else {
-        console.log('⚠️ No ID found in response, but save appears successful');
-        return { success: true, data: responseData };
-      }
+      console.log('✅ Save operation successful:', result);
+      return result;
     } catch (error: any) {
-      console.error('❌ Direct save operation failed:', {
-        name: error.name,
-        message: error.message,
-        stack: error.stack
-      });
+      console.error('❌ Save operation failed:', error);
       throw error;
     }
-  }, []);
+  }, [fetchWithErrorHandling]);
 
   // 🆕 Enhanced fetchGeofences with save operation awareness
   const fetchGeofences = useCallback(async (userId: string, options: { 
@@ -1388,59 +1235,7 @@ export function GeofenceManager() {
     }
     
     // Cleanup function
-    // 🆕 Show initial loading screen while fetching data
-  if (uiState.initialLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-center max-w-md mx-auto p-8">
-          <div className="relative mb-6">
-            <div className="w-16 h-16 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin mx-auto"></div>
-            <div className="absolute inset-0 flex items-center justify-center">
-              <MapPin className="w-6 h-6 text-blue-600" />
-            </div>
-          </div>
-          
-          <h2 className="text-xl font-semibold text-gray-800 mb-2">
-            Loading Geofence Manager
-          </h2>
-          
-          <p className="text-gray-600 mb-4">
-            Fetching your geofences and vehicle data...
-          </p>
-          
-          <div className="text-sm text-gray-500">
-            {currentUser ? (
-              <>
-                <div className="mb-2">User: {currentUser.email || currentUser.username || 'Unknown'}</div>
-                <div>Please wait while we load your data</div>
-              </>
-            ) : (
-              <div>Waiting for user authentication...</div>
-            )}
-          </div>
-          
-          {/* Progress indicators */}
-          <div className="mt-6 space-y-2">
-            <div className="flex items-center justify-center text-xs text-gray-500">
-              <div className="w-2 h-2 bg-blue-600 rounded-full mr-2 animate-pulse"></div>
-              Connecting to server...
-            </div>
-            <div className="flex items-center justify-center text-xs text-gray-500">
-              <div className="w-2 h-2 bg-blue-400 rounded-full mr-2 animate-pulse" style={{ animationDelay: '0.2s' }}></div>
-              Loading geofences...
-            </div>
-            <div className="flex items-center justify-center text-xs text-gray-500">
-              <div className="w-2 h-2 bg-blue-300 rounded-full mr-2 animate-pulse" style={{ animationDelay: '0.4s' }}></div>
-              Loading vehicles...
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // 🆕 Main UI renders only after initial data is loaded
-  return () => {
+    return () => {
       if (debounceTimeoutRef.current) {
         clearTimeout(debounceTimeoutRef.current);
       }

@@ -135,7 +135,7 @@ const LandingPage = () => {
               </Link>
               <div className="h-6 w-px bg-slate-300 mx-2"></div>
               <Link href="/login" passHref>
-                <Button variant="outline" className="bg- border-slate-300 text-slate-600 hover:border-blue-600 hover:text-blue-600">
+                <Button variant="outline" className="border-slate-300 text-slate-600 hover:border-blue-600 hover:text-blue-600">
                   Masuk
                 </Button>
               </Link>

@@ -40,12 +40,12 @@ const MapWithDrawing = dynamic(
   }
 );
 
-// 🔧 Enhanced type definitions with flexible types
+// 🔧 Enhanced type definitions
 export interface Geofence {
   geofence_id: number;
   user_id: string;
   name: string;
-  type: string; // 🆕 Changed from "circle" | "polygon" to string for flexibility
+  type: "circle" | "polygon";
   rule_type: "STANDARD" | "FORBIDDEN" | "STAY_IN";
   status: "active" | "inactive";
   definition: {
@@ -56,14 +56,6 @@ export interface Geofence {
   };
   date_created: string;
 }
-
-// 🆕 Add validation for geofence type compatibility
-const normalizeGeofenceType = (type: string): string => {
-  const lowerType = type.toLowerCase();
-  if (lowerType.includes('polygon')) return 'polygon';
-  if (lowerType.includes('circle')) return 'circle';
-  return type;
-};
 
 export interface Vehicle {
   vehicle_id: string;
@@ -119,51 +111,23 @@ const ensureArray = <T,>(value: any): T[] => {
 };
 
 const validateGeofence = (geofence: Geofence | null | undefined): geofence is Geofence => {
-  if (!geofence?.definition) {
-    console.warn('❌ Geofence validation failed: No definition', geofence);
-    return false;
-  }
+  if (!geofence?.definition) return false;
   
   try {
-    console.log('🔍 Validating geofence:', {
-      id: geofence.geofence_id,
-      name: geofence.name,
-      type: geofence.type,
-      definition: geofence.definition
-    });
-
-    // 🆕 Accept any type that contains 'circle' or 'polygon'
-    const isCircleType = geofence.type === 'circle' || geofence.type.toLowerCase().includes('circle');
-    const isPolygonType = geofence.type === 'polygon' || geofence.type.toLowerCase().includes('polygon');
-
-    if (isCircleType) {
+    if (geofence.type === 'circle') {
       const { center, radius } = geofence.definition;
-      const isValid = !!(center?.length === 2 && 
+      return !!(center?.length === 2 && 
                typeof radius === 'number' && 
                radius > 0 &&
                center.every(coord => typeof coord === 'number' && isFinite(coord)));
-      
-      if (!isValid) {
-        console.warn('❌ Circle geofence validation failed:', {
-          center, radius,
-          centerLength: center?.length,
-          radiusType: typeof radius,
-          radiusValue: radius
-        });
-      } else {
-        console.log('✅ Circle geofence validation passed');
-      }
-      return isValid;
     }
     
-    if (isPolygonType) {
+    if (geofence.type === 'polygon') {
       const { coordinates } = geofence.definition;
-      console.log('🔍 Validating polygon coordinates:', coordinates);
-      
       const polygonCoords = coordinates?.[0];
-      const isValid = !!(
+      return !!(
         polygonCoords &&
-        polygonCoords.length >= 3 && // 🆕 Changed from 4 to 3 (minimum for polygon)
+        polygonCoords.length >= 4 &&
         polygonCoords.every(
           coord =>
             Array.isArray(coord) &&
@@ -171,27 +135,11 @@ const validateGeofence = (geofence: Geofence | null | undefined): geofence is Ge
             coord.every(c => typeof c === 'number' && isFinite(c))
         )
       );
-      
-      if (!isValid) {
-        console.warn('❌ Polygon geofence validation failed:', {
-          coordinates,
-          polygonCoords,
-          polygonCoordsLength: polygonCoords?.length,
-          firstCoord: polygonCoords?.[0],
-          coordsValid: polygonCoords?.every(
-            coord => Array.isArray(coord) && coord.length === 2
-          )
-        });
-      } else {
-        console.log('✅ Polygon geofence validation passed');
-      }
-      return isValid;
     }
     
-    console.warn('❌ Unknown geofence type:', geofence.type);
     return false;
   } catch (error) {
-    console.error('❌ Geofence validation error:', error, geofence);
+    console.error('Geofence validation error:', error);
     return false;
   }
 };
@@ -269,15 +217,14 @@ export function GeofenceManager() {
   const [drawnLayers, setDrawnLayers] = useState<Layer[]>([]);
   const [selectedVehicles, setSelectedVehicles] = useState<string[]>([]);
   
-  // 🔧 Enhanced refs for optimization with separate controllers
+  // 🔧 Enhanced refs for optimization
   const debounceTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const fetchAbortControllerRef = useRef<AbortController | null>(null);
-  const saveAbortControllerRef = useRef<AbortController | null>(null); // 🆕 Separate controller for save operations
   const refreshIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const isInitialLoadRef = useRef(true);
-  const saveRetryTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const saveRetryTimeoutRef = useRef<NodeJS.Timeout | null>(null); // 🆕
 
-  // 🔧 Enhanced API functions with completely separate controllers for save operations
+  // 🔧 Enhanced API functions with better error handling and debugging
   const fetchWithErrorHandling = useCallback(async (url: string, options?: RequestInit) => {
     try {
       console.log('🌐 Making API request:', {
@@ -287,31 +234,16 @@ export function GeofenceManager() {
         bodyLength: options?.body ? (options.body as string).length : 0
       });
 
-      const isGetRequest = !options?.method || options.method === 'GET';
-      const isSaveRequest = options?.method === 'POST';
-      
-      let currentController: AbortController;
-      
-      if (isSaveRequest) {
-        // 🆕 For save operations, NEVER use shared abort controller
-        currentController = new AbortController();
-        console.log('💾 Using dedicated controller for save operation');
-      } else if (isGetRequest) {
-        // Only abort previous GET requests
-        if (fetchAbortControllerRef.current) {
-          console.log('🛑 Aborting previous GET request');
-          fetchAbortControllerRef.current.abort();
-        }
-        currentController = new AbortController();
-        fetchAbortControllerRef.current = currentController;
-      } else {
-        // For other requests
-        currentController = new AbortController();
+      // Cancel previous request if still pending
+      if (fetchAbortControllerRef.current) {
+        fetchAbortControllerRef.current.abort();
       }
+      
+      fetchAbortControllerRef.current = new AbortController();
       
       const requestOptions = {
         ...options,
-        signal: currentController.signal,
+        signal: fetchAbortControllerRef.current.signal,
         headers: {
           'Content-Type': 'application/json',
           'Cache-Control': 'no-cache',
@@ -322,121 +254,47 @@ export function GeofenceManager() {
       console.log('📤 Request options:', {
         method: requestOptions.method,
         headers: requestOptions.headers,
-        bodyPreview: options?.body ? (options.body as string).substring(0, 200) + '...' : null,
-        isGetRequest,
-        isSaveRequest,
-        savingInProgress: uiState.savingInProgress,
-        hasSignal: !!requestOptions.signal
+        bodyPreview: options?.body ? (options.body as string).substring(0, 200) + '...' : null
       });
 
-      // 🆕 No timeout for save operations to prevent interruption
-      if (isSaveRequest) {
-        console.log('💾 Save request - no timeout applied');
-        const response = await fetch(url, requestOptions);
-        
-        console.log('📥 Save Response received:', {
-          status: response.status,
-          statusText: response.statusText,
-          ok: response.ok,
-          headers: Object.fromEntries(response.headers.entries())
-        });
-        
-        if (!response.ok) {
-          let errorData;
-          try {
-            errorData = await response.json();
-          } catch (parseError) {
-            console.error('Failed to parse save error response as JSON:', parseError);
-            errorData = { message: response.statusText };
-          }
-          
-          console.error('❌ Save API Error Response:', {
-            status: response.status,
-            statusText: response.statusText,
-            errorData
-          });
-          
-          throw new Error(errorData.message || `HTTP ${response.status}: ${response.statusText}`);
-        }
-        
-        const responseData = await response.json();
-        console.log('✅ Save response data:', {
-          rawResponse: responseData,
-          dataType: typeof responseData,
-          keys: Object.keys(responseData),
-          hasData: !!responseData.data,
-          dataKeys: responseData.data ? Object.keys(responseData.data) : null
-        });
-        
-        return responseData;
-      } else {
-        // For GET requests, apply timeout
-        const timeoutDuration = REQUEST_TIMEOUT;
-        
-        const timeoutPromise = new Promise((_, reject) => {
-          setTimeout(() => reject(new Error(`Request timeout after ${timeoutDuration/1000} seconds`)), timeoutDuration);
-        });
+      // 🆕 Add timeout handling
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Request timeout after 30 seconds')), REQUEST_TIMEOUT);
+      });
 
-        const fetchPromise = fetch(url, requestOptions);
+      const fetchPromise = fetch(url, requestOptions);
+      
+      const response = await Promise.race([fetchPromise, timeoutPromise]) as Response;
+      
+      console.log('📥 Response received:', {
+        status: response.status,
+        statusText: response.statusText,
+        ok: response.ok,
+        headers: Object.fromEntries(response.headers.entries())
+      });
+      
+      if (!response.ok) {
+        let errorData;
+        try {
+          errorData = await response.json();
+        } catch (parseError) {
+          console.error('Failed to parse error response as JSON:', parseError);
+          errorData = { message: response.statusText };
+        }
         
-        const response = await Promise.race([fetchPromise, timeoutPromise]) as Response;
-        
-        console.log('📥 Response received:', {
+        console.error('❌ API Error Response:', {
           status: response.status,
           statusText: response.statusText,
-          ok: response.ok,
-          headers: Object.fromEntries(response.headers.entries())
+          errorData
         });
         
-        if (!response.ok) {
-          let errorData;
-          try {
-            const responseText = await response.text();
-            if (responseText.trim()) {
-              errorData = JSON.parse(responseText);
-            } else {
-              errorData = { message: response.statusText };
-            }
-          } catch (parseError) {
-            console.error('Failed to parse error response as JSON:', parseError);
-            errorData = { message: response.statusText };
-          }
-          
-          console.error('❌ API Error Response:', {
-            status: response.status,
-            statusText: response.statusText,
-            errorData
-          });
-          
-          throw new Error(errorData.message || `HTTP ${response.status}: ${response.statusText}`);
-        }
-        
-        // 🆕 Handle different response types safely
-        const responseText = await response.text();
-        
-        if (!responseText || responseText.trim() === '') {
-          console.log('📝 Empty response received (common for DELETE operations)');
-          return { success: true, empty: true };
-        }
-        
-        let responseData;
-        try {
-          responseData = JSON.parse(responseText);
-        } catch (parseError) {
-          console.warn('⚠️ Response is not valid JSON, treating as text:', responseText);
-          return { success: true, data: responseText };
-        }
-        
-        console.log('✅ Successful response data:', {
-          rawResponse: responseData,
-          dataType: typeof responseData,
-          keys: Object.keys(responseData),
-          hasData: !!responseData.data,
-          dataKeys: responseData.data ? Object.keys(responseData.data) : null
-        });
-        
-        return responseData;
+        throw new Error(errorData.message || `HTTP ${response.status}: ${response.statusText}`);
       }
+      
+      const responseData = await response.json();
+      console.log('✅ Successful response data:', responseData);
+      
+      return responseData;
     } catch (error: any) {
       if (error.name === 'AbortError') {
         console.log('⏹️ Request was aborted');
@@ -453,129 +311,16 @@ export function GeofenceManager() {
       
       throw error;
     }
-  }, [uiState.savingInProgress]);
-
-  // 🆕 Dedicated save function that completely bypasses abort controller system
-  const saveGeofenceToAPI = useCallback(async (payload: any) => {
-    try {
-      console.log('💾 Starting dedicated save operation...', payload);
-      
-      // 🆕 Direct fetch without any abort controller interference
-      const response = await fetch(GEOFENCE_API_ENDPOINT, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Cache-Control': 'no-cache',
-        },
-        body: JSON.stringify(payload)
-      });
-      
-      console.log('📥 Direct save response:', {
-        status: response.status,
-        statusText: response.statusText,
-        ok: response.ok,
-        url: response.url
-      });
-      
-      if (!response.ok) {
-        let errorData;
-        try {
-          const responseText = await response.text();
-          if (responseText.trim()) {
-            errorData = JSON.parse(responseText);
-          } else {
-            errorData = { message: response.statusText };
-          }
-        } catch (parseError) {
-          console.error('Failed to parse error response:', parseError);
-          errorData = { message: response.statusText };
-        }
-        
-        console.error('❌ API Error Response:', {
-          status: response.status,
-          statusText: response.statusText,
-          errorData
-        });
-        
-        throw new Error(errorData.message || `HTTP ${response.status}: ${response.statusText}`);
-      }
-      
-      // 🆕 Handle different response types - some DELETE operations return empty responses
-      const responseText = await response.text();
-      
-      if (!responseText || responseText.trim() === '') {
-        console.log('📝 Empty response received (common for DELETE operations)');
-        return { success: true, empty: true };
-      }
-      
-      let responseData;
-      try {
-        responseData = JSON.parse(responseText);
-      } catch (parseError) {
-        console.warn('⚠️ Failed to parse response as JSON, treating as text:', responseText);
-        return { success: true, data: responseText };
-      }
-      
-      console.log('✅ Save response data:', {
-        rawResponse: responseData,
-        dataType: typeof responseData,
-        keys: Object.keys(responseData),
-        hasData: !!responseData.data,
-        dataKeys: responseData.data ? Object.keys(responseData.data) : null
-      });
-      
-      return responseData;
-      
-      // 🆕 Enhanced response parsing - handle different response formats
-      let savedGeofenceId = null;
-      
-      if (responseData.geofence_id) {
-        savedGeofenceId = responseData.geofence_id;
-      } else if (responseData.data && responseData.data.geofence_id) {
-        savedGeofenceId = responseData.data.geofence_id;
-      } else if (responseData.id) {
-        savedGeofenceId = responseData.id;
-      } else if (responseData.data && responseData.data.id) {
-        savedGeofenceId = responseData.data.id;
-      } else if (typeof responseData === 'object' && Object.keys(responseData).length > 0) {
-        // If response is an object but doesn't have expected ID fields,
-        // assume save was successful and we'll find it in the next fetch
-        console.log('🔍 Save response doesn\'t contain obvious ID field, but appears successful');
-        return { success: true, data: responseData };
-      }
-      
-      if (savedGeofenceId) {
-        console.log('✅ Extracted geofence ID from response:', savedGeofenceId);
-        return { success: true, geofence_id: savedGeofenceId, data: responseData };
-      } else {
-        console.log('⚠️ No ID found in response, but save appears successful');
-        return { success: true, data: responseData };
-      }
-    } catch (error: any) {
-      console.error('❌ Direct save operation failed:', {
-        name: error.name,
-        message: error.message,
-        stack: error.stack
-      });
-      throw error;
-    }
   }, []);
 
-  // 🆕 Enhanced fetchGeofences with save operation awareness
+  // 🆕 Enhanced fetchGeofences with better post-save handling
   const fetchGeofences = useCallback(async (userId: string, options: { 
     silent?: boolean; 
     forceRefresh?: boolean; 
     retryCount?: number;
     lookingForId?: number;
-    skipIfSaving?: boolean; // 🆕 Skip if currently saving
   } = {}) => {
     try {
-      // 🆕 Skip if currently saving to avoid conflicts
-      if (options.skipIfSaving && uiState.savingInProgress) {
-        console.log('⏭️ Skipping geofence fetch - save in progress');
-        return geofences;
-      }
-
       if (!options.silent) {
         setUIState(prev => ({ ...prev, loading: true }));
       }
@@ -584,94 +329,35 @@ export function GeofenceManager() {
       console.log('🔄 Fetching geofences...', { 
         userId, 
         options: { ...options, retryCount },
-        lookingForId: options.lookingForId,
-        savingInProgress: uiState.savingInProgress
+        lookingForId: options.lookingForId 
       });
       
       // Add timestamp to force fresh data
       const timestamp = options.forceRefresh ? `&t=${Date.now()}` : '';
-      const apiUrl = `${GEOFENCE_API_ENDPOINT}?filter[user_id][_eq]=${userId}&limit=-1&sort=-date_created${timestamp}`;
+      const result = await fetchWithErrorHandling(
+        `${GEOFENCE_API_ENDPOINT}?filter[user_id][_eq]=${userId}&limit=-1&sort=-date_created${timestamp}`
+      );
       
-      console.log('🌐 API Request URL:', apiUrl);
-      
-      const result = await fetchWithErrorHandling(apiUrl);
-      
-      if (!result) {
-        console.log('⚠️ No result from geofence fetch (likely aborted), retrying...');
-        
-        // 🆕 Retry mechanism for aborted requests
-        if (retryCount < 2) {
-          await new Promise(resolve => setTimeout(resolve, 1000));
-          return fetchGeofences(userId, {
-            ...options,
-            retryCount: retryCount + 1,
-            forceRefresh: true
-          });
-        }
-        
-        console.log('❌ Failed to fetch geofences after retries');
-        return geofences; // Return current geofences on failure
-      }
+      if (!result) return []; // Request was aborted
       
       const fetchedGeofences = ensureArray(result.data || result);
       
-      console.log('📥 Raw geofences from API:', {
-        count: fetchedGeofences.length,
-        currentUserId: userId,
-        rawData: fetchedGeofences,
-        userMatches: fetchedGeofences.filter(g => g.user_id === userId).length,
-        allUserIds: [...new Set(fetchedGeofences.map(g => g.user_id))]
-      });
-
-      // 🆕 Filter by user_id on client side as backup
-      const userGeofences = fetchedGeofences.filter(g => g.user_id === userId);
+      console.log('📥 Raw geofences from API:', fetchedGeofences.length);
       
-      console.log('🔍 User-filtered geofences:', {
-        beforeFilter: fetchedGeofences.length,
-        afterFilter: userGeofences.length,
-        filteredData: userGeofences
-      });
-      
-      // 🔧 Enhanced parsing with better error handling and detailed logging
-      const parsedGeofences = userGeofences.map((gf: any, index: number) => {
-        console.log(`🔍 Processing geofence ${index + 1}:`, {
-          id: gf.geofence_id,
-          name: gf.name,
-          type: gf.type,
-          definitionType: typeof gf.definition,
-          definitionValue: gf.definition
-        });
-
+      // 🔧 Enhanced parsing with better error handling
+      const parsedGeofences = fetchedGeofences.map((gf: any) => {
         if (typeof gf.definition === 'string') {
           try {
-            const parsed = JSON.parse(gf.definition);
-            console.log(`✅ Parsed definition for ${gf.name}:`, parsed);
-            return { ...gf, definition: parsed };
+            return { ...gf, definition: JSON.parse(gf.definition) };
           } catch (e) {
-            console.error(`❌ Failed to parse definition for geofence ${gf.geofence_id}:`, e, gf.definition);
+            console.error(`Failed to parse definition for geofence ${gf.geofence_id}:`, e);
             return { ...gf, definition: {} };
           }
         }
-        console.log(`✅ Definition already parsed for ${gf.name}`);
         return gf;
       });
       
-      console.log('🔍 Before validation:', {
-        parsedCount: parsedGeofences.length,
-        parsedData: parsedGeofences
-      });
-      
-      const validGeofences = parsedGeofences.filter((g, index) => {
-        const isValid = validateGeofence(g);
-        console.log(`🔍 Geofence ${index + 1} "${g.name}" validation result:`, isValid);
-        return isValid;
-      });
-      
-      console.log('🔍 After validation:', {
-        validCount: validGeofences.length,
-        validData: validGeofences,
-        rejectedCount: parsedGeofences.length - validGeofences.length
-      });
+      const validGeofences = parsedGeofences.filter(validateGeofence);
       
       // 🆕 Sort by date created (newest first) and ensure consistency
       const sortedGeofences = validGeofences.sort((a, b) => 
@@ -679,17 +365,6 @@ export function GeofenceManager() {
       );
       
       setGeofences(sortedGeofences);
-      
-      console.log('📊 Final geofences state update:', {
-        previousCount: geofences.length,
-        newCount: sortedGeofences.length,
-        geofences: sortedGeofences.map(g => ({
-          id: g.geofence_id,
-          name: g.name,
-          type: g.type,
-          valid: validateGeofence(g)
-        }))
-      });
       
       // 🆕 Update data load timestamp
       setUIState(prev => ({ 
@@ -753,13 +428,13 @@ export function GeofenceManager() {
         toast.error("Failed to load geofences");
       }
       setUIState(prev => ({ ...prev, savingInProgress: false }));
-      return geofences; // Return current geofences on error
+      return [];
     } finally {
       if (!options.silent) {
         setUIState(prev => ({ ...prev, loading: false }));
       }
     }
-  }, [fetchWithErrorHandling, geofences, uiState.savingInProgress]);
+  }, [fetchWithErrorHandling]);
 
   const fetchVehicles = useCallback(async (userId: string, options: { silent?: boolean } = {}) => {
     try {
@@ -785,12 +460,11 @@ export function GeofenceManager() {
     }
   }, [fetchWithErrorHandling]);
 
-  // 🆕 Function to refresh all data with enhanced save operation awareness
+  // 🆕 Function to refresh all data with enhanced post-save handling
   const refreshAllData = useCallback(async (userId: string, options: { 
     silent?: boolean; 
     forceRefresh?: boolean;
     lookingForId?: number;
-    skipIfSaving?: boolean; // 🆕
   } = {}) => {
     console.log('🔄 Refreshing all data...', { userId, options });
     
@@ -866,39 +540,15 @@ export function GeofenceManager() {
     }
   }, [vehicles, updateVehicleGeofence]);
 
-  // 🔧 Enhanced filtering with memoization and debugging
+  // 🔧 Enhanced filtering with memoization and debouncing
   const filteredGeofences = useMemo(() => {
-    const validGeofences = geofences.filter(validateGeofence);
-    
-    console.log('🔍 Filtering geofences:', {
-      totalGeofences: geofences.length,
-      validGeofences: validGeofences.length,
-      searchTerm: uiState.searchTerm,
-      rawGeofences: geofences.map(g => ({
-        id: g.geofence_id,
-        name: g.name,
-        type: g.type,
-        isValid: validateGeofence(g)
-      }))
-    });
-
-    if (!uiState.searchTerm.trim()) {
-      console.log('📋 No search term, returning all valid geofences:', validGeofences.length);
-      return validGeofences;
-    }
+    if (!uiState.searchTerm.trim()) return geofences.filter(validateGeofence);
     
     const searchLower = uiState.searchTerm.toLowerCase();
-    const filtered = validGeofences.filter(g => 
+    return geofences.filter(g => 
+      validateGeofence(g) && 
       g.name.toLowerCase().includes(searchLower)
     );
-    
-    console.log('🔍 Search filtered geofences:', {
-      searchTerm: searchLower,
-      filteredCount: filtered.length,
-      filtered: filtered.map(g => ({ id: g.geofence_id, name: g.name }))
-    });
-    
-    return filtered;
   }, [geofences, uiState.searchTerm]);
 
   const validGeofences: Geofence[] = useMemo(
@@ -1333,12 +983,7 @@ export function GeofenceManager() {
           setCurrentUser(user);
           const userId = user.id || user.user_id;
           
-          console.log('👤 User loaded:', { 
-            userId, 
-            name: user.full_name || user.email,
-            fullUserObject: user,
-            sessionStorageRaw: userJson
-          });
+          console.log('👤 User loaded:', { userId, name: user.full_name || user.email });
           
           if (userId) {
             console.log('📥 Loading initial data...');
@@ -1374,10 +1019,7 @@ export function GeofenceManager() {
           const userId = currentUser.id || currentUser.user_id;
           if (userId) {
             console.log('🔄 Auto-refresh triggered');
-            refreshAllData(userId, { 
-              silent: true, 
-              skipIfSaving: true // 🆕 Skip if saving
-            });
+            refreshAllData(userId, { silent: true });
           }
         }
       }, DATA_REFRESH_INTERVAL);
@@ -1388,67 +1030,12 @@ export function GeofenceManager() {
     }
     
     // Cleanup function
-    // 🆕 Show initial loading screen while fetching data
-  if (uiState.initialLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-center max-w-md mx-auto p-8">
-          <div className="relative mb-6">
-            <div className="w-16 h-16 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin mx-auto"></div>
-            <div className="absolute inset-0 flex items-center justify-center">
-              <MapPin className="w-6 h-6 text-blue-600" />
-            </div>
-          </div>
-          
-          <h2 className="text-xl font-semibold text-gray-800 mb-2">
-            Loading Geofence Manager
-          </h2>
-          
-          <p className="text-gray-600 mb-4">
-            Fetching your geofences and vehicle data...
-          </p>
-          
-          <div className="text-sm text-gray-500">
-            {currentUser ? (
-              <>
-                <div className="mb-2">User: {currentUser.email || currentUser.username || 'Unknown'}</div>
-                <div>Please wait while we load your data</div>
-              </>
-            ) : (
-              <div>Waiting for user authentication...</div>
-            )}
-          </div>
-          
-          {/* Progress indicators */}
-          <div className="mt-6 space-y-2">
-            <div className="flex items-center justify-center text-xs text-gray-500">
-              <div className="w-2 h-2 bg-blue-600 rounded-full mr-2 animate-pulse"></div>
-              Connecting to server...
-            </div>
-            <div className="flex items-center justify-center text-xs text-gray-500">
-              <div className="w-2 h-2 bg-blue-400 rounded-full mr-2 animate-pulse" style={{ animationDelay: '0.2s' }}></div>
-              Loading geofences...
-            </div>
-            <div className="flex items-center justify-center text-xs text-gray-500">
-              <div className="w-2 h-2 bg-blue-300 rounded-full mr-2 animate-pulse" style={{ animationDelay: '0.4s' }}></div>
-              Loading vehicles...
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // 🆕 Main UI renders only after initial data is loaded
-  return () => {
+    return () => {
       if (debounceTimeoutRef.current) {
         clearTimeout(debounceTimeoutRef.current);
       }
       if (fetchAbortControllerRef.current) {
         fetchAbortControllerRef.current.abort();
-      }
-      if (saveAbortControllerRef.current) {
-        saveAbortControllerRef.current.abort();
       }
       if (refreshIntervalRef.current) {
         clearInterval(refreshIntervalRef.current);
@@ -1687,25 +1274,6 @@ export function GeofenceManager() {
 
           {/* Geofence List */}
           <div className="flex-1 overflow-auto space-y-2 pr-1">
-            {/* 🆕 Debug info */}
-            {process.env.NODE_ENV === 'development' && (
-              <div className="text-xs bg-gray-100 p-2 rounded border mb-2">
-                <div><strong>Debug Info:</strong></div>
-                <div>User ID: {currentUser?.id || currentUser?.user_id || 'Not found'}</div>
-                <div>Total: {geofences.length}</div>
-                <div>Filtered: {filteredGeofences.length}</div>
-                <div>Valid: {geofences.filter(validateGeofence).length}</div>
-                <div>Search: "{uiState.searchTerm}"</div>
-                <div>Creating: {uiState.isCreating ? 'Yes' : 'No'}</div>
-                <div>Loading: {uiState.loading ? 'Yes' : 'No'}</div>
-                {geofences.length > 0 && (
-                  <div className="mt-1">
-                    <div>User IDs in data: {[...new Set(geofences.map(g => g.user_id))].join(', ')}</div>
-                  </div>
-                )}
-              </div>
-            )}
-            
             {uiState.loading && geofences.length === 0 && !uiState.isCreating ? (
               <div className="text-center py-8 text-gray-500">
                 <Loader2 className="w-8 h-8 animate-spin mx-auto mb-3 text-blue-500" />
@@ -1726,17 +1294,6 @@ export function GeofenceManager() {
                       : "Start by creating your first geofence"
                     }
                   </p>
-                  {/* 🆕 Debug info when no geofences */}
-                  {process.env.NODE_ENV === 'development' && !uiState.searchTerm && (
-                    <div className="text-xs text-gray-500 mb-4 bg-yellow-50 p-2 rounded border">
-                      Debug: {geofences.length} total, {geofences.filter(validateGeofence).length} valid
-                      {geofences.length > 0 && (
-                        <div className="mt-1">
-                          Failed validation: {geofences.filter(g => !validateGeofence(g)).map(g => g.name).join(', ')}
-                        </div>
-                      )}
-                    </div>
-                  )}
                   {!uiState.searchTerm && (
                     <Button
                       onClick={handleStartCreating}

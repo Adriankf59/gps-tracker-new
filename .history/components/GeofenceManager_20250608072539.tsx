@@ -391,12 +391,7 @@ export function GeofenceManager() {
         if (!response.ok) {
           let errorData;
           try {
-            const responseText = await response.text();
-            if (responseText.trim()) {
-              errorData = JSON.parse(responseText);
-            } else {
-              errorData = { message: response.statusText };
-            }
+            errorData = await response.json();
           } catch (parseError) {
             console.error('Failed to parse error response as JSON:', parseError);
             errorData = { message: response.statusText };
@@ -411,22 +406,7 @@ export function GeofenceManager() {
           throw new Error(errorData.message || `HTTP ${response.status}: ${response.statusText}`);
         }
         
-        // 🆕 Handle different response types safely
-        const responseText = await response.text();
-        
-        if (!responseText || responseText.trim() === '') {
-          console.log('📝 Empty response received (common for DELETE operations)');
-          return { success: true, empty: true };
-        }
-        
-        let responseData;
-        try {
-          responseData = JSON.parse(responseText);
-        } catch (parseError) {
-          console.warn('⚠️ Response is not valid JSON, treating as text:', responseText);
-          return { success: true, data: responseText };
-        }
-        
+        const responseData = await response.json();
         console.log('✅ Successful response data:', {
           rawResponse: responseData,
           dataType: typeof responseData,
@@ -480,51 +460,23 @@ export function GeofenceManager() {
       if (!response.ok) {
         let errorData;
         try {
-          const responseText = await response.text();
-          if (responseText.trim()) {
-            errorData = JSON.parse(responseText);
-          } else {
-            errorData = { message: response.statusText };
-          }
+          errorData = await response.json();
+          console.error('❌ Save API Error:', errorData);
         } catch (parseError) {
-          console.error('Failed to parse error response:', parseError);
+          console.error('❌ Failed to parse save error response:', parseError);
           errorData = { message: response.statusText };
         }
-        
-        console.error('❌ API Error Response:', {
-          status: response.status,
-          statusText: response.statusText,
-          errorData
-        });
-        
-        throw new Error(errorData.message || `HTTP ${response.status}: ${response.statusText}`);
+        throw new Error(errorData.message || `Save failed: HTTP ${response.status}`);
       }
       
-      // 🆕 Handle different response types - some DELETE operations return empty responses
-      const responseText = await response.text();
-      
-      if (!responseText || responseText.trim() === '') {
-        console.log('📝 Empty response received (common for DELETE operations)');
-        return { success: true, empty: true };
-      }
-      
-      let responseData;
-      try {
-        responseData = JSON.parse(responseText);
-      } catch (parseError) {
-        console.warn('⚠️ Failed to parse response as JSON, treating as text:', responseText);
-        return { success: true, data: responseText };
-      }
-      
-      console.log('✅ Save response data:', {
+      const responseData = await response.json();
+      console.log('✅ Save operation completed successfully:', {
         rawResponse: responseData,
         dataType: typeof responseData,
-        keys: Object.keys(responseData),
+        keys: responseData ? Object.keys(responseData) : [],
         hasData: !!responseData.data,
         dataKeys: responseData.data ? Object.keys(responseData.data) : null
       });
-      
-      return responseData;
       
       // 🆕 Enhanced response parsing - handle different response formats
       let savedGeofenceId = null;
@@ -1388,59 +1340,7 @@ export function GeofenceManager() {
     }
     
     // Cleanup function
-    // 🆕 Show initial loading screen while fetching data
-  if (uiState.initialLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-center max-w-md mx-auto p-8">
-          <div className="relative mb-6">
-            <div className="w-16 h-16 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin mx-auto"></div>
-            <div className="absolute inset-0 flex items-center justify-center">
-              <MapPin className="w-6 h-6 text-blue-600" />
-            </div>
-          </div>
-          
-          <h2 className="text-xl font-semibold text-gray-800 mb-2">
-            Loading Geofence Manager
-          </h2>
-          
-          <p className="text-gray-600 mb-4">
-            Fetching your geofences and vehicle data...
-          </p>
-          
-          <div className="text-sm text-gray-500">
-            {currentUser ? (
-              <>
-                <div className="mb-2">User: {currentUser.email || currentUser.username || 'Unknown'}</div>
-                <div>Please wait while we load your data</div>
-              </>
-            ) : (
-              <div>Waiting for user authentication...</div>
-            )}
-          </div>
-          
-          {/* Progress indicators */}
-          <div className="mt-6 space-y-2">
-            <div className="flex items-center justify-center text-xs text-gray-500">
-              <div className="w-2 h-2 bg-blue-600 rounded-full mr-2 animate-pulse"></div>
-              Connecting to server...
-            </div>
-            <div className="flex items-center justify-center text-xs text-gray-500">
-              <div className="w-2 h-2 bg-blue-400 rounded-full mr-2 animate-pulse" style={{ animationDelay: '0.2s' }}></div>
-              Loading geofences...
-            </div>
-            <div className="flex items-center justify-center text-xs text-gray-500">
-              <div className="w-2 h-2 bg-blue-300 rounded-full mr-2 animate-pulse" style={{ animationDelay: '0.4s' }}></div>
-              Loading vehicles...
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // 🆕 Main UI renders only after initial data is loaded
-  return () => {
+    return () => {
       if (debounceTimeoutRef.current) {
         clearTimeout(debounceTimeoutRef.current);
       }
