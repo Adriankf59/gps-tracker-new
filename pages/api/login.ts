@@ -205,7 +205,7 @@ export default async function handler(
     }
 
     // Get Directus URL
-    const directusUrl = 'https://vehitrack.my.id/directus/items';
+    const directusUrl = process.env.API_URL;
     
     if (!directusUrl) {
       return res.status(500).json({

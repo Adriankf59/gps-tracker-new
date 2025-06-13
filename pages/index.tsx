@@ -1,13 +1,12 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { MapPin, Shield, Smartphone, BarChart3, ArrowRight, CheckCircle, Star, Users, Clock, Zap, Menu, X } from "lucide-react";
+import { MapPin, Shield, Smartphone, BarChart3, ArrowRight, CheckCircle, Star, Users, Clock, Zap } from "lucide-react";
 import Link from "next/link";
 import { useState, useEffect } from "react";
 
 const LandingPage = () => {
   const [currentSlide, setCurrentSlide] = useState(0);
   const [isVisible, setIsVisible] = useState(false);
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   // Auto-advancing hero text
   const heroTexts = [
@@ -55,7 +54,7 @@ const LandingPage = () => {
     {
       name: "Budi Santoso",
       company: "PT Logistik Prima",
-      text: "Sejak menggunakan Vehitrack, efisiensi armada kami meningkat 35%. ROI tercapai dalam 3 bulan!",
+      text: "Sejak menggunakan GPS Tracker, efisiensi armada kami meningkat 35%. ROI tercapai dalam 3 bulan!",
       rating: 5
     },
     {
@@ -99,127 +98,35 @@ const LandingPage = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-slate-50">
-      {/* Enhanced Header with Responsive Mobile Menu */}
+      {/* Enhanced Header with CTA */}
       <header className="bg-white/80 backdrop-blur-md shadow-sm border-b sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center py-4">
-            {/* Logo Section */}
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-blue-700 rounded-xl flex items-center justify-center shadow-lg">
                 <MapPin className="w-6 h-6 text-white" />
               </div>
               <div>
                 <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-blue-800 bg-clip-text text-transparent">
-                  Vehitrack
+                  GPS Tracker Pro
                 </h1>
                 <p className="text-sm text-slate-500">Vehicle Management System</p>
               </div>
             </div>
-
-            {/* Desktop Navigation */}
-            <div className="hidden md:flex items-center gap-3">
-              <Link href="/features" passHref>
-                <Button variant="ghost" className="text-slate-600 hover:text-blue-600">
-                  Fitur
-                </Button>
-              </Link>
-              <Link href="/pricing" passHref>
-                <Button variant="ghost" className="text-slate-600 hover:text-blue-600">
-                  Harga
-                </Button>
-              </Link>
-              <Link href="/contact" passHref>
-                <Button variant="ghost" className="text-slate-600 hover:text-blue-600">
-                  Kontak
-                </Button>
-              </Link>
-              <div className="h-6 w-px bg-slate-300 mx-2"></div>
+            <div className="flex items-center gap-3">
+              
               <Link href="/login" passHref>
-                <Button variant="outline" className="bg- border-slate-300 text-slate-600 hover:border-blue-600 hover:text-blue-600">
-                  Masuk
-                </Button>
+                <Button variant="outline">Masuk</Button>
               </Link>
               <Link href="/register" passHref>
                 <Button className="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800">
-                  Daftar Gratis
+                  Mulai Trial Gratis
                   <ArrowRight className="ml-2 w-5 h-5" />
                 </Button>
               </Link>
-            </div>
-
-            {/* Mobile Menu Button */}
-            <div className="md:hidden">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-                className="p-2"
-              >
-                {isMobileMenuOpen ? (
-                  <X className="w-6 h-6 text-slate-600" />
-                ) : (
-                  <Menu className="w-6 h-6 text-slate-600" />
-                )}
-              </Button>
+              
             </div>
           </div>
-
-          {/* Mobile Menu */}
-          {isMobileMenuOpen && (
-            <div className="md:hidden border-t border-slate-200 py-4 bg-white/95 backdrop-blur-sm">
-              <div className="flex flex-col space-y-3">
-                <Link href="/features" passHref>
-                  <Button 
-                    variant="ghost" 
-                    className="justify-start text-slate-600 hover:text-blue-600 hover:bg-blue-50"
-                    onClick={() => setIsMobileMenuOpen(false)}
-                  >
-                    Fitur
-                  </Button>
-                </Link>
-                <Link href="/pricing" passHref>
-                  <Button 
-                    variant="ghost" 
-                    className="justify-start text-slate-600 hover:text-blue-600 hover:bg-blue-50"
-                    onClick={() => setIsMobileMenuOpen(false)}
-                  >
-                    Harga
-                  </Button>
-                </Link>
-                <Link href="/contact" passHref>
-                  <Button 
-                    variant="ghost" 
-                    className="justify-start text-slate-600 hover:text-blue-600 hover:bg-blue-50"
-                    onClick={() => setIsMobileMenuOpen(false)}
-                  >
-                    Kontak
-                  </Button>
-                </Link>
-                <div className="border-t border-slate-200 pt-3 mt-3">
-                  <div className="flex flex-col space-y-3">
-                    <Link href="/login" passHref>
-                      <Button 
-                        variant="outline" 
-                        className="justify-center border-slate-300 text-slate-600 hover:border-blue-600 hover:text-blue-600"
-                        onClick={() => setIsMobileMenuOpen(false)}
-                      >
-                        Masuk
-                      </Button>
-                    </Link>
-                    <Link href="/register" passHref>
-                      <Button 
-                        className="justify-center bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800"
-                        onClick={() => setIsMobileMenuOpen(false)}
-                      >
-                        Daftar Gratis
-                        <ArrowRight className="ml-2 w-5 h-5" />
-                      </Button>
-                    </Link>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
         </div>
       </header>
 
@@ -464,7 +371,7 @@ const LandingPage = () => {
                 <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-blue-700 rounded-xl flex items-center justify-center">
                   <MapPin className="w-6 h-6 text-white" />
                 </div>
-                <span className="text-2xl font-bold">Vehitrack</span>
+                <span className="text-2xl font-bold">GPS Tracker Pro</span>
               </div>
               <p className="text-slate-400 mb-4 max-w-md">
                 Solusi manajemen kendaraan terdepan dengan teknologi AI dan IoT untuk efisiensi maksimal armada Anda.
@@ -486,6 +393,7 @@ const LandingPage = () => {
               <ul className="space-y-2 text-slate-400">
                 <li><Link href="/features" className="hover:text-white transition-colors">Fitur</Link></li>
                 <li><Link href="/pricing" className="hover:text-white transition-colors">Harga</Link></li>
+                
                 <li><Link href="/api" className="hover:text-white transition-colors">API</Link></li>
               </ul>
             </div>
@@ -500,7 +408,7 @@ const LandingPage = () => {
             </div>
           </div>
           <div className="border-t border-slate-800 pt-8 text-center text-slate-400">
-            <p>© 2024 Vehitrack. Semua hak dilindungi undang-undang.</p>
+            <p>© 2024 GPS Tracker Pro. Semua hak dilindungi undang-undang.</p>
           </div>
         </div>
       </footer>

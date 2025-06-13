@@ -40,12 +40,12 @@ const MapWithDrawing = dynamic(
   }
 );
 
-// 🔧 Enhanced type definitions with flexible types
+// 🔧 Enhanced type definitions
 export interface Geofence {
   geofence_id: number;
   user_id: string;
   name: string;
-  type: string; // 🆕 Changed from "circle" | "polygon" to string for flexibility
+  type: "circle" | "polygon";
   rule_type: "STANDARD" | "FORBIDDEN" | "STAY_IN";
   status: "active" | "inactive";
   definition: {
@@ -56,14 +56,6 @@ export interface Geofence {
   };
   date_created: string;
 }
-
-// 🆕 Add validation for geofence type compatibility
-const normalizeGeofenceType = (type: string): string => {
-  const lowerType = type.toLowerCase();
-  if (lowerType.includes('polygon')) return 'polygon';
-  if (lowerType.includes('circle')) return 'circle';
-  return type;
-};
 
 export interface Vehicle {
   vehicle_id: string;
@@ -88,9 +80,8 @@ interface UIState {
   loading: boolean;
   assignDialogOpen: boolean;
   searchTerm: string;
-  lastSavedGeofenceId: number | null;
-  dataLoadTimestamp: number;
-  savingInProgress: boolean; // 🆕 Track saving state specifically
+  lastSavedGeofenceId: number | null; // 🆕 Track last saved geofence
+  dataLoadTimestamp: number; // 🆕 Track when data was loaded
 }
 
 // 🔧 Constants with environment support
@@ -100,11 +91,7 @@ const VEHICLE_API_ENDPOINT = `${API_BASE_URL}/items/vehicle`;
 
 const DEFAULT_CENTER: [number, number] = [-2.5, 118.0];
 const SEARCH_DEBOUNCE_DELAY = 300;
-const DATA_REFRESH_INTERVAL = 30000;
-const POST_SAVE_DELAY = 1000;
-const MAX_RETRY_ATTEMPTS = 3;
-const REQUEST_TIMEOUT = 30000; // 🆕 30 second timeout
-
+const DATA_REFRESH_INTERVAL = 30000; // 🆕 Auto refresh every 30 seconds
 const MAP_ZOOM_LEVELS = {
   overview: 5,
   detail: 13,
@@ -112,6 +99,7 @@ const MAP_ZOOM_LEVELS = {
 } as const;
 
 // 🔧 Enhanced utility functions
+// Avoid JSX ambiguity by using a trailing comma in the generic
 const ensureArray = <T,>(value: any): T[] => {
   if (Array.isArray(value)) return value;
   if (value?.data && Array.isArray(value.data)) return value.data;
@@ -119,51 +107,23 @@ const ensureArray = <T,>(value: any): T[] => {
 };
 
 const validateGeofence = (geofence: Geofence | null | undefined): geofence is Geofence => {
-  if (!geofence?.definition) {
-    console.warn('❌ Geofence validation failed: No definition', geofence);
-    return false;
-  }
+  if (!geofence?.definition) return false;
   
   try {
-    console.log('🔍 Validating geofence:', {
-      id: geofence.geofence_id,
-      name: geofence.name,
-      type: geofence.type,
-      definition: geofence.definition
-    });
-
-    // 🆕 Accept any type that contains 'circle' or 'polygon'
-    const isCircleType = geofence.type === 'circle' || geofence.type.toLowerCase().includes('circle');
-    const isPolygonType = geofence.type === 'polygon' || geofence.type.toLowerCase().includes('polygon');
-
-    if (isCircleType) {
+    if (geofence.type === 'circle') {
       const { center, radius } = geofence.definition;
-      const isValid = !!(center?.length === 2 && 
+      return !!(center?.length === 2 && 
                typeof radius === 'number' && 
                radius > 0 &&
                center.every(coord => typeof coord === 'number' && isFinite(coord)));
-      
-      if (!isValid) {
-        console.warn('❌ Circle geofence validation failed:', {
-          center, radius,
-          centerLength: center?.length,
-          radiusType: typeof radius,
-          radiusValue: radius
-        });
-      } else {
-        console.log('✅ Circle geofence validation passed');
-      }
-      return isValid;
     }
     
-    if (isPolygonType) {
+    if (geofence.type === 'polygon') {
       const { coordinates } = geofence.definition;
-      console.log('🔍 Validating polygon coordinates:', coordinates);
-      
       const polygonCoords = coordinates?.[0];
-      const isValid = !!(
+      return !!(
         polygonCoords &&
-        polygonCoords.length >= 3 && // 🆕 Changed from 4 to 3 (minimum for polygon)
+        polygonCoords.length >= 4 &&
         polygonCoords.every(
           coord =>
             Array.isArray(coord) &&
@@ -171,27 +131,11 @@ const validateGeofence = (geofence: Geofence | null | undefined): geofence is Ge
             coord.every(c => typeof c === 'number' && isFinite(c))
         )
       );
-      
-      if (!isValid) {
-        console.warn('❌ Polygon geofence validation failed:', {
-          coordinates,
-          polygonCoords,
-          polygonCoordsLength: polygonCoords?.length,
-          firstCoord: polygonCoords?.[0],
-          coordsValid: polygonCoords?.every(
-            coord => Array.isArray(coord) && coord.length === 2
-          )
-        });
-      } else {
-        console.log('✅ Polygon geofence validation passed');
-      }
-      return isValid;
     }
     
-    console.warn('❌ Unknown geofence type:', geofence.type);
     return false;
   } catch (error) {
-    console.error('❌ Geofence validation error:', error, geofence);
+    console.error('Geofence validation error:', error);
     return false;
   }
 };
@@ -255,9 +199,8 @@ export function GeofenceManager() {
     loading: true,
     assignDialogOpen: false,
     searchTerm: "",
-    lastSavedGeofenceId: null,
-    dataLoadTimestamp: 0,
-    savingInProgress: false // 🆕
+    lastSavedGeofenceId: null, // 🆕
+    dataLoadTimestamp: 0 // 🆕
   });
   
   const [newGeofence, setNewGeofence] = useState<GeofenceFormState>({
@@ -269,409 +212,82 @@ export function GeofenceManager() {
   const [drawnLayers, setDrawnLayers] = useState<Layer[]>([]);
   const [selectedVehicles, setSelectedVehicles] = useState<string[]>([]);
   
-  // 🔧 Enhanced refs for optimization with separate controllers
+  // 🔧 Enhanced refs for optimization
   const debounceTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const fetchAbortControllerRef = useRef<AbortController | null>(null);
-  const saveAbortControllerRef = useRef<AbortController | null>(null); // 🆕 Separate controller for save operations
-  const refreshIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  const isInitialLoadRef = useRef(true);
-  const saveRetryTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const refreshIntervalRef = useRef<NodeJS.Timeout | null>(null); // 🆕 Auto refresh interval
+  const isInitialLoadRef = useRef(true); // 🆕 Track initial load
 
-  // 🔧 Enhanced API functions with completely separate controllers for save operations
+  // 🔧 Enhanced API functions with better error handling and data persistence
   const fetchWithErrorHandling = useCallback(async (url: string, options?: RequestInit) => {
     try {
-      console.log('🌐 Making API request:', {
-        url,
-        method: options?.method || 'GET',
-        hasBody: !!options?.body,
-        bodyLength: options?.body ? (options.body as string).length : 0
-      });
-
-      const isGetRequest = !options?.method || options.method === 'GET';
-      const isSaveRequest = options?.method === 'POST';
-      
-      let currentController: AbortController;
-      
-      if (isSaveRequest) {
-        // 🆕 For save operations, NEVER use shared abort controller
-        currentController = new AbortController();
-        console.log('💾 Using dedicated controller for save operation');
-      } else if (isGetRequest) {
-        // Only abort previous GET requests
-        if (fetchAbortControllerRef.current) {
-          console.log('🛑 Aborting previous GET request');
-          fetchAbortControllerRef.current.abort();
-        }
-        currentController = new AbortController();
-        fetchAbortControllerRef.current = currentController;
-      } else {
-        // For other requests
-        currentController = new AbortController();
+      // Cancel previous request if still pending
+      if (fetchAbortControllerRef.current) {
+        fetchAbortControllerRef.current.abort();
       }
       
-      const requestOptions = {
+      fetchAbortControllerRef.current = new AbortController();
+      
+      const response = await fetch(url, {
         ...options,
-        signal: currentController.signal,
+        signal: fetchAbortControllerRef.current.signal,
         headers: {
           'Content-Type': 'application/json',
-          'Cache-Control': 'no-cache',
+          'Cache-Control': 'no-cache', // 🆕 Ensure fresh data
           ...options?.headers
         }
-      };
-
-      console.log('📤 Request options:', {
-        method: requestOptions.method,
-        headers: requestOptions.headers,
-        bodyPreview: options?.body ? (options.body as string).substring(0, 200) + '...' : null,
-        isGetRequest,
-        isSaveRequest,
-        savingInProgress: uiState.savingInProgress,
-        hasSignal: !!requestOptions.signal
-      });
-
-      // 🆕 No timeout for save operations to prevent interruption
-      if (isSaveRequest) {
-        console.log('💾 Save request - no timeout applied');
-        const response = await fetch(url, requestOptions);
-        
-        console.log('📥 Save Response received:', {
-          status: response.status,
-          statusText: response.statusText,
-          ok: response.ok,
-          headers: Object.fromEntries(response.headers.entries())
-        });
-        
-        if (!response.ok) {
-          let errorData;
-          try {
-            errorData = await response.json();
-          } catch (parseError) {
-            console.error('Failed to parse save error response as JSON:', parseError);
-            errorData = { message: response.statusText };
-          }
-          
-          console.error('❌ Save API Error Response:', {
-            status: response.status,
-            statusText: response.statusText,
-            errorData
-          });
-          
-          throw new Error(errorData.message || `HTTP ${response.status}: ${response.statusText}`);
-        }
-        
-        const responseData = await response.json();
-        console.log('✅ Save response data:', {
-          rawResponse: responseData,
-          dataType: typeof responseData,
-          keys: Object.keys(responseData),
-          hasData: !!responseData.data,
-          dataKeys: responseData.data ? Object.keys(responseData.data) : null
-        });
-        
-        return responseData;
-      } else {
-        // For GET requests, apply timeout
-        const timeoutDuration = REQUEST_TIMEOUT;
-        
-        const timeoutPromise = new Promise((_, reject) => {
-          setTimeout(() => reject(new Error(`Request timeout after ${timeoutDuration/1000} seconds`)), timeoutDuration);
-        });
-
-        const fetchPromise = fetch(url, requestOptions);
-        
-        const response = await Promise.race([fetchPromise, timeoutPromise]) as Response;
-        
-        console.log('📥 Response received:', {
-          status: response.status,
-          statusText: response.statusText,
-          ok: response.ok,
-          headers: Object.fromEntries(response.headers.entries())
-        });
-        
-        if (!response.ok) {
-          let errorData;
-          try {
-            const responseText = await response.text();
-            if (responseText.trim()) {
-              errorData = JSON.parse(responseText);
-            } else {
-              errorData = { message: response.statusText };
-            }
-          } catch (parseError) {
-            console.error('Failed to parse error response as JSON:', parseError);
-            errorData = { message: response.statusText };
-          }
-          
-          console.error('❌ API Error Response:', {
-            status: response.status,
-            statusText: response.statusText,
-            errorData
-          });
-          
-          throw new Error(errorData.message || `HTTP ${response.status}: ${response.statusText}`);
-        }
-        
-        // 🆕 Handle different response types safely
-        const responseText = await response.text();
-        
-        if (!responseText || responseText.trim() === '') {
-          console.log('📝 Empty response received (common for DELETE operations)');
-          return { success: true, empty: true };
-        }
-        
-        let responseData;
-        try {
-          responseData = JSON.parse(responseText);
-        } catch (parseError) {
-          console.warn('⚠️ Response is not valid JSON, treating as text:', responseText);
-          return { success: true, data: responseText };
-        }
-        
-        console.log('✅ Successful response data:', {
-          rawResponse: responseData,
-          dataType: typeof responseData,
-          keys: Object.keys(responseData),
-          hasData: !!responseData.data,
-          dataKeys: responseData.data ? Object.keys(responseData.data) : null
-        });
-        
-        return responseData;
-      }
-    } catch (error: any) {
-      if (error.name === 'AbortError') {
-        console.log('⏹️ Request was aborted');
-        return null;
-      }
-      
-      console.error('❌ Fetch error:', {
-        name: error.name,
-        message: error.message,
-        stack: error.stack,
-        url,
-        method: options?.method || 'GET'
-      });
-      
-      throw error;
-    }
-  }, [uiState.savingInProgress]);
-
-  // 🆕 Dedicated save function that completely bypasses abort controller system
-  const saveGeofenceToAPI = useCallback(async (payload: any) => {
-    try {
-      console.log('💾 Starting dedicated save operation...', payload);
-      
-      // 🆕 Direct fetch without any abort controller interference
-      const response = await fetch(GEOFENCE_API_ENDPOINT, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Cache-Control': 'no-cache',
-        },
-        body: JSON.stringify(payload)
-      });
-      
-      console.log('📥 Direct save response:', {
-        status: response.status,
-        statusText: response.statusText,
-        ok: response.ok,
-        url: response.url
       });
       
       if (!response.ok) {
-        let errorData;
-        try {
-          const responseText = await response.text();
-          if (responseText.trim()) {
-            errorData = JSON.parse(responseText);
-          } else {
-            errorData = { message: response.statusText };
-          }
-        } catch (parseError) {
-          console.error('Failed to parse error response:', parseError);
-          errorData = { message: response.statusText };
-        }
-        
-        console.error('❌ API Error Response:', {
-          status: response.status,
-          statusText: response.statusText,
-          errorData
-        });
-        
-        throw new Error(errorData.message || `HTTP ${response.status}: ${response.statusText}`);
+        const errorData = await response.json().catch(() => ({ message: response.statusText }));
+        throw new Error(errorData.message || `HTTP ${response.status}`);
       }
       
-      // 🆕 Handle different response types - some DELETE operations return empty responses
-      const responseText = await response.text();
-      
-      if (!responseText || responseText.trim() === '') {
-        console.log('📝 Empty response received (common for DELETE operations)');
-        return { success: true, empty: true };
-      }
-      
-      let responseData;
-      try {
-        responseData = JSON.parse(responseText);
-      } catch (parseError) {
-        console.warn('⚠️ Failed to parse response as JSON, treating as text:', responseText);
-        return { success: true, data: responseText };
-      }
-      
-      console.log('✅ Save response data:', {
-        rawResponse: responseData,
-        dataType: typeof responseData,
-        keys: Object.keys(responseData),
-        hasData: !!responseData.data,
-        dataKeys: responseData.data ? Object.keys(responseData.data) : null
-      });
-      
-      return responseData;
-      
-      // 🆕 Enhanced response parsing - handle different response formats
-      let savedGeofenceId = null;
-      
-      if (responseData.geofence_id) {
-        savedGeofenceId = responseData.geofence_id;
-      } else if (responseData.data && responseData.data.geofence_id) {
-        savedGeofenceId = responseData.data.geofence_id;
-      } else if (responseData.id) {
-        savedGeofenceId = responseData.id;
-      } else if (responseData.data && responseData.data.id) {
-        savedGeofenceId = responseData.data.id;
-      } else if (typeof responseData === 'object' && Object.keys(responseData).length > 0) {
-        // If response is an object but doesn't have expected ID fields,
-        // assume save was successful and we'll find it in the next fetch
-        console.log('🔍 Save response doesn\'t contain obvious ID field, but appears successful');
-        return { success: true, data: responseData };
-      }
-      
-      if (savedGeofenceId) {
-        console.log('✅ Extracted geofence ID from response:', savedGeofenceId);
-        return { success: true, geofence_id: savedGeofenceId, data: responseData };
-      } else {
-        console.log('⚠️ No ID found in response, but save appears successful');
-        return { success: true, data: responseData };
-      }
+      return await response.json();
     } catch (error: any) {
-      console.error('❌ Direct save operation failed:', {
-        name: error.name,
-        message: error.message,
-        stack: error.stack
-      });
+      if (error.name === 'AbortError') {
+        console.log('Request was aborted');
+        return null;
+      }
       throw error;
     }
   }, []);
 
-  // 🆕 Enhanced fetchGeofences with save operation awareness
-  const fetchGeofences = useCallback(async (userId: string, options: { 
-    silent?: boolean; 
-    forceRefresh?: boolean; 
-    retryCount?: number;
-    lookingForId?: number;
-    skipIfSaving?: boolean; // 🆕 Skip if currently saving
-  } = {}) => {
+  // 🆕 Enhanced fetchGeofences with better persistence and tracking
+  const fetchGeofences = useCallback(async (userId: string, options: { silent?: boolean; forceRefresh?: boolean } = {}) => {
     try {
-      // 🆕 Skip if currently saving to avoid conflicts
-      if (options.skipIfSaving && uiState.savingInProgress) {
-        console.log('⏭️ Skipping geofence fetch - save in progress');
-        return geofences;
-      }
-
       if (!options.silent) {
         setUIState(prev => ({ ...prev, loading: true }));
       }
       
-      const retryCount = options.retryCount || 0;
-      console.log('🔄 Fetching geofences...', { 
-        userId, 
-        options: { ...options, retryCount },
-        lookingForId: options.lookingForId,
-        savingInProgress: uiState.savingInProgress
-      });
+      console.log('🔄 Fetching geofences...', { userId, options });
       
       // Add timestamp to force fresh data
       const timestamp = options.forceRefresh ? `&t=${Date.now()}` : '';
-      const apiUrl = `${GEOFENCE_API_ENDPOINT}?filter[user_id][_eq]=${userId}&limit=-1&sort=-date_created${timestamp}`;
+      const result = await fetchWithErrorHandling(
+        `${GEOFENCE_API_ENDPOINT}?filter[user_id][_eq]=${userId}&limit=-1&sort=-date_created${timestamp}`
+      );
       
-      console.log('🌐 API Request URL:', apiUrl);
-      
-      const result = await fetchWithErrorHandling(apiUrl);
-      
-      if (!result) {
-        console.log('⚠️ No result from geofence fetch (likely aborted), retrying...');
-        
-        // 🆕 Retry mechanism for aborted requests
-        if (retryCount < 2) {
-          await new Promise(resolve => setTimeout(resolve, 1000));
-          return fetchGeofences(userId, {
-            ...options,
-            retryCount: retryCount + 1,
-            forceRefresh: true
-          });
-        }
-        
-        console.log('❌ Failed to fetch geofences after retries');
-        return geofences; // Return current geofences on failure
-      }
+      if (!result) return []; // Request was aborted
       
       const fetchedGeofences = ensureArray(result.data || result);
       
-      console.log('📥 Raw geofences from API:', {
-        count: fetchedGeofences.length,
-        currentUserId: userId,
-        rawData: fetchedGeofences,
-        userMatches: fetchedGeofences.filter(g => g.user_id === userId).length,
-        allUserIds: [...new Set(fetchedGeofences.map(g => g.user_id))]
-      });
-
-      // 🆕 Filter by user_id on client side as backup
-      const userGeofences = fetchedGeofences.filter(g => g.user_id === userId);
+      console.log('📥 Raw geofences from API:', fetchedGeofences.length);
       
-      console.log('🔍 User-filtered geofences:', {
-        beforeFilter: fetchedGeofences.length,
-        afterFilter: userGeofences.length,
-        filteredData: userGeofences
-      });
-      
-      // 🔧 Enhanced parsing with better error handling and detailed logging
-      const parsedGeofences = userGeofences.map((gf: any, index: number) => {
-        console.log(`🔍 Processing geofence ${index + 1}:`, {
-          id: gf.geofence_id,
-          name: gf.name,
-          type: gf.type,
-          definitionType: typeof gf.definition,
-          definitionValue: gf.definition
-        });
-
+      // 🔧 Enhanced parsing with better error handling
+      const parsedGeofences = fetchedGeofences.map((gf: any) => {
         if (typeof gf.definition === 'string') {
           try {
-            const parsed = JSON.parse(gf.definition);
-            console.log(`✅ Parsed definition for ${gf.name}:`, parsed);
-            return { ...gf, definition: parsed };
+            return { ...gf, definition: JSON.parse(gf.definition) };
           } catch (e) {
-            console.error(`❌ Failed to parse definition for geofence ${gf.geofence_id}:`, e, gf.definition);
+            console.error(`Failed to parse definition for geofence ${gf.geofence_id}:`, e);
             return { ...gf, definition: {} };
           }
         }
-        console.log(`✅ Definition already parsed for ${gf.name}`);
         return gf;
       });
       
-      console.log('🔍 Before validation:', {
-        parsedCount: parsedGeofences.length,
-        parsedData: parsedGeofences
-      });
-      
-      const validGeofences = parsedGeofences.filter((g, index) => {
-        const isValid = validateGeofence(g);
-        console.log(`🔍 Geofence ${index + 1} "${g.name}" validation result:`, isValid);
-        return isValid;
-      });
-      
-      console.log('🔍 After validation:', {
-        validCount: validGeofences.length,
-        validData: validGeofences,
-        rejectedCount: parsedGeofences.length - validGeofences.length
-      });
+      const validGeofences = parsedGeofences.filter(validateGeofence);
       
       // 🆕 Sort by date created (newest first) and ensure consistency
       const sortedGeofences = validGeofences.sort((a, b) => 
@@ -679,17 +295,6 @@ export function GeofenceManager() {
       );
       
       setGeofences(sortedGeofences);
-      
-      console.log('📊 Final geofences state update:', {
-        previousCount: geofences.length,
-        newCount: sortedGeofences.length,
-        geofences: sortedGeofences.map(g => ({
-          id: g.geofence_id,
-          name: g.name,
-          type: g.type,
-          valid: validateGeofence(g)
-        }))
-      });
       
       // 🆕 Update data load timestamp
       setUIState(prev => ({ 
@@ -699,50 +304,13 @@ export function GeofenceManager() {
       
       console.log(`✅ Successfully loaded ${sortedGeofences.length} valid geofences`);
       
-      // 🆕 Enhanced post-save geofence selection with retry logic
-      if (options.lookingForId) {
-        const savedGeofence = sortedGeofences.find(g => g.geofence_id === options.lookingForId);
-        
-        if (savedGeofence) {
-          console.log('🎯 Found newly saved geofence:', savedGeofence.name);
-          setCurrentGeofence(savedGeofence);
-          setUIState(prev => ({ 
-            ...prev, 
-            lastSavedGeofenceId: null,
-            savingInProgress: false 
-          }));
-          toast.success(`Geofence "${savedGeofence.name}" is now active and visible on the map!`);
-          return sortedGeofences;
-        } else if (retryCount < MAX_RETRY_ATTEMPTS) {
-          // 🆕 Retry logic - sometimes the server needs a moment
-          console.log(`⏳ Geofence ${options.lookingForId} not found, retrying (${retryCount + 1}/${MAX_RETRY_ATTEMPTS})...`);
-          
-          if (saveRetryTimeoutRef.current) {
-            clearTimeout(saveRetryTimeoutRef.current);
-          }
-          
-          saveRetryTimeoutRef.current = setTimeout(() => {
-            fetchGeofences(userId, {
-              ...options,
-              retryCount: retryCount + 1,
-              forceRefresh: true
-            });
-          }, 1500 * (retryCount + 1)); // Increasing delay
-          
-          return sortedGeofences;
-        } else {
-          console.log(`❌ Could not find saved geofence ${options.lookingForId} after ${MAX_RETRY_ATTEMPTS} attempts`);
-          setUIState(prev => ({ 
-            ...prev, 
-            lastSavedGeofenceId: null,
-            savingInProgress: false 
-          }));
-          
-          // Select the first geofence as fallback
-          if (sortedGeofences.length > 0) {
-            setCurrentGeofence(sortedGeofences[0]);
-            toast.success("Geofence saved! Displaying latest geofence.");
-          }
+      // 🆕 If this is after a save operation, try to select the newly saved geofence
+      if (uiState.lastSavedGeofenceId) {
+        const newlyCreated = sortedGeofences.find(g => g.geofence_id === uiState.lastSavedGeofenceId);
+        if (newlyCreated) {
+          console.log('🎯 Found and selecting newly created geofence:', newlyCreated.name);
+          setCurrentGeofence(newlyCreated);
+          setUIState(prev => ({ ...prev, lastSavedGeofenceId: null })); // Clear the flag
         }
       }
       
@@ -752,14 +320,13 @@ export function GeofenceManager() {
       if (!options.silent) {
         toast.error("Failed to load geofences");
       }
-      setUIState(prev => ({ ...prev, savingInProgress: false }));
-      return geofences; // Return current geofences on error
+      return [];
     } finally {
       if (!options.silent) {
         setUIState(prev => ({ ...prev, loading: false }));
       }
     }
-  }, [fetchWithErrorHandling, geofences, uiState.savingInProgress]);
+  }, [fetchWithErrorHandling, uiState.lastSavedGeofenceId]);
 
   const fetchVehicles = useCallback(async (userId: string, options: { silent?: boolean } = {}) => {
     try {
@@ -785,13 +352,8 @@ export function GeofenceManager() {
     }
   }, [fetchWithErrorHandling]);
 
-  // 🆕 Function to refresh all data with enhanced save operation awareness
-  const refreshAllData = useCallback(async (userId: string, options: { 
-    silent?: boolean; 
-    forceRefresh?: boolean;
-    lookingForId?: number;
-    skipIfSaving?: boolean; // 🆕
-  } = {}) => {
+  // 🆕 Function to refresh all data
+  const refreshAllData = useCallback(async (userId: string, options: { silent?: boolean; forceRefresh?: boolean } = {}) => {
     console.log('🔄 Refreshing all data...', { userId, options });
     
     try {
@@ -866,39 +428,15 @@ export function GeofenceManager() {
     }
   }, [vehicles, updateVehicleGeofence]);
 
-  // 🔧 Enhanced filtering with memoization and debugging
+  // 🔧 Enhanced filtering with memoization and debouncing
   const filteredGeofences = useMemo(() => {
-    const validGeofences = geofences.filter(validateGeofence);
-    
-    console.log('🔍 Filtering geofences:', {
-      totalGeofences: geofences.length,
-      validGeofences: validGeofences.length,
-      searchTerm: uiState.searchTerm,
-      rawGeofences: geofences.map(g => ({
-        id: g.geofence_id,
-        name: g.name,
-        type: g.type,
-        isValid: validateGeofence(g)
-      }))
-    });
-
-    if (!uiState.searchTerm.trim()) {
-      console.log('📋 No search term, returning all valid geofences:', validGeofences.length);
-      return validGeofences;
-    }
+    if (!uiState.searchTerm.trim()) return geofences.filter(validateGeofence);
     
     const searchLower = uiState.searchTerm.toLowerCase();
-    const filtered = validGeofences.filter(g => 
+    return geofences.filter(g => 
+      validateGeofence(g) && 
       g.name.toLowerCase().includes(searchLower)
     );
-    
-    console.log('🔍 Search filtered geofences:', {
-      searchTerm: searchLower,
-      filteredCount: filtered.length,
-      filtered: filtered.map(g => ({ id: g.geofence_id, name: g.name }))
-    });
-    
-    return filtered;
   }, [geofences, uiState.searchTerm]);
 
   const validGeofences: Geofence[] = useMemo(
@@ -981,32 +519,20 @@ export function GeofenceManager() {
     toast.info('Drawing removed');
   }, []);
 
-  // 🆕 ENHANCED save geofence with better error handling and debugging
+  // 🆕 Enhanced save geofence with improved persistence and immediate display
   const handleSaveGeofence = useCallback(async () => {
     if (!currentUser || !newGeofence.name.trim() || drawnLayers.length === 0) {
       toast.error("Please complete all fields and draw a geofence area");
       return;
     }
     
-    // Set saving state
-    setUIState(prev => ({ 
-      ...prev, 
-      loading: true, 
-      savingInProgress: true 
-    }));
+    setUIState(prev => ({ ...prev, loading: true }));
     
     try {
       const layer = drawnLayers[0];
       const userId = currentUser.id || currentUser.user_id;
       let definitionData: any;
       let geofenceTypeForPayload: "circle" | "polygon" = newGeofence.type;
-
-      console.log('🚀 Starting save process...', {
-        userId,
-        name: newGeofence.name,
-        type: newGeofence.type,
-        ruleType: newGeofence.ruleType
-      });
 
       // 🔧 Enhanced layer processing
       if (typeof (layer as any).getRadius === 'function') {
@@ -1084,125 +610,62 @@ export function GeofenceManager() {
       };
 
       console.log('📤 Sending geofence payload:', payload);
-      console.log('📤 API Endpoint:', GEOFENCE_API_ENDPOINT);
 
       const result = await fetchWithErrorHandling(GEOFENCE_API_ENDPOINT, {
         method: 'POST',
         body: JSON.stringify(payload)
       });
 
-      console.log('📥 Raw API response:', result);
-
       if (result) {
         const savedGeofence = result.data || result;
-        const savedId = savedGeofence?.geofence_id;
+        console.log('✅ Geofence saved successfully:', savedGeofence);
         
-        console.log('✅ Geofence saved successfully:', {
-          savedGeofence,
-          savedId,
-          fullResponse: result
-        });
+        toast.success("Geofence saved successfully!");
         
-        if (!savedId) {
-          console.warn('⚠️ No geofence_id in response, but save appears successful');
-        }
-        
-        // 🆕 IMMEDIATE state updates
-        setUIState(prev => ({ 
-          ...prev, 
-          isCreating: false,
-          lastSavedGeofenceId: savedId || null,
-          loading: false,
-          savingInProgress: false
-        }));
-        setDrawnLayers([]);
-        
-        // 🆕 IMMEDIATE success feedback
-        toast.success(`Geofence "${newGeofence.name}" saved successfully!`, {
-          description: savedId ? "Refreshing data..." : "Data saved",
-          duration: 4000
-        });
-        
-        // 🆕 IMMEDIATE data refresh
-        console.log('🔄 Refreshing data after save...', { savedId });
-        
-        // Small delay to ensure server has processed the save
-        await new Promise(resolve => setTimeout(resolve, POST_SAVE_DELAY));
-        
-        // Refresh data
-        if (savedId) {
-          await refreshAllData(userId, { 
-            forceRefresh: true,
-            lookingForId: savedId
-          });
+        // 🆕 Set the saved geofence ID for tracking
+        if (savedGeofence?.geofence_id) {
+          setUIState(prev => ({ 
+            ...prev, 
+            isCreating: false,
+            lastSavedGeofenceId: savedGeofence.geofence_id
+          }));
         } else {
-          // Fallback: refresh without specific ID
-          await refreshAllData(userId, { forceRefresh: true });
+          setUIState(prev => ({ ...prev, isCreating: false }));
         }
         
-        console.log('✅ Save and refresh operation completed successfully');
-      } else {
-        console.error('❌ No result from API save operation');
-        
-        // 🆕 Still update UI state to exit creation mode
-        setUIState(prev => ({ 
-          ...prev, 
-          isCreating: false,
-          loading: false,
-          savingInProgress: false 
-        }));
         setDrawnLayers([]);
         
-        // 🆕 Try to refresh data anyway - maybe the save succeeded but response failed
-        toast.warning('Save completed but response unclear. Refreshing data...', {
-          duration: 4000
-        });
+        // 🆕 Enhanced data refresh with force refresh to ensure latest data
+        console.log('🔄 Refreshing data after save...');
+        await new Promise(resolve => setTimeout(resolve, 500)); // Brief delay to ensure server processing
         
-        try {
-          await refreshAllData(userId, { forceRefresh: true });
-          
-          // Check if geofence with the same name was created
-          setTimeout(() => {
-            const foundGeofence = geofences.find(g => 
-              g.name.toLowerCase() === newGeofence.name.toLowerCase().trim()
-            );
-            
-            if (foundGeofence) {
-              setCurrentGeofence(foundGeofence);
-              toast.success(`Found saved geofence: ${foundGeofence.name}`);
+        const refreshResult = await refreshAllData(userId, { forceRefresh: true });
+        
+        // 🆕 Fallback selection if automatic selection doesn't work
+        if (refreshResult.geofences && refreshResult.geofences.length > 0) {
+          if (savedGeofence?.geofence_id) {
+            const found = refreshResult.geofences.find(g => g.geofence_id === savedGeofence.geofence_id);
+            if (found) {
+              console.log('🎯 Setting newly saved geofence as current:', found.name);
+              setCurrentGeofence(found);
             } else {
-              toast.error('Geofence may not have been saved. Please try again.');
+              console.log('⚠️ Could not find saved geofence, selecting first available');
+              setCurrentGeofence(refreshResult.geofences[0]);
             }
-          }, 2000);
-          
-        } catch (refreshError) {
-          console.error('❌ Failed to refresh after unclear save:', refreshError);
-          toast.error('Unable to confirm if geofence was saved. Please refresh manually.');
+          } else {
+            setCurrentGeofence(refreshResult.geofences[0]);
+          }
         }
+        
+        console.log('✅ Save operation completed successfully');
       }
     } catch (error: any) {
-      console.error('❌ Error saving geofence:', {
-        error,
-        message: error?.message,
-        stack: error?.stack,
-        name: error?.name
-      });
-      
-      // Show detailed error message
-      const errorMessage = error?.message || 'Unknown error occurred';
-      toast.error(`Failed to save geofence: ${errorMessage}`, {
-        description: 'Please check the console for more details',
-        duration: 5000
-      });
-      
-      // Reset states on error
-      setUIState(prev => ({ 
-        ...prev, 
-        loading: false,
-        savingInProgress: false 
-      }));
+      console.error('❌ Error saving geofence:', error);
+      toast.error(`Failed to save geofence: ${error.message}`);
+    } finally {
+      setUIState(prev => ({ ...prev, loading: false }));
     }
-  }, [currentUser, newGeofence, drawnLayers, fetchWithErrorHandling, refreshAllData, geofences]);
+  }, [currentUser, newGeofence, drawnLayers, fetchWithErrorHandling, refreshAllData]);
 
   // 🔧 Enhanced delete geofence
   const handleDeleteGeofence = useCallback(async (geofenceId: number) => {
@@ -1333,12 +796,7 @@ export function GeofenceManager() {
           setCurrentUser(user);
           const userId = user.id || user.user_id;
           
-          console.log('👤 User loaded:', { 
-            userId, 
-            name: user.full_name || user.email,
-            fullUserObject: user,
-            sessionStorageRaw: userJson
-          });
+          console.log('👤 User loaded:', { userId, name: user.full_name || user.email });
           
           if (userId) {
             console.log('📥 Loading initial data...');
@@ -1370,14 +828,11 @@ export function GeofenceManager() {
       }
       
       refreshIntervalRef.current = setInterval(() => {
-        if (currentUser && !uiState.savingInProgress) { // 🆕 Don't auto-refresh while saving
+        if (currentUser) {
           const userId = currentUser.id || currentUser.user_id;
           if (userId) {
             console.log('🔄 Auto-refresh triggered');
-            refreshAllData(userId, { 
-              silent: true, 
-              skipIfSaving: true // 🆕 Skip if saving
-            });
+            refreshAllData(userId, { silent: true });
           }
         }
       }, DATA_REFRESH_INTERVAL);
@@ -1388,87 +843,29 @@ export function GeofenceManager() {
     }
     
     // Cleanup function
-    // 🆕 Show initial loading screen while fetching data
-  if (uiState.initialLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-center max-w-md mx-auto p-8">
-          <div className="relative mb-6">
-            <div className="w-16 h-16 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin mx-auto"></div>
-            <div className="absolute inset-0 flex items-center justify-center">
-              <MapPin className="w-6 h-6 text-blue-600" />
-            </div>
-          </div>
-          
-          <h2 className="text-xl font-semibold text-gray-800 mb-2">
-            Loading Geofence Manager
-          </h2>
-          
-          <p className="text-gray-600 mb-4">
-            Fetching your geofences and vehicle data...
-          </p>
-          
-          <div className="text-sm text-gray-500">
-            {currentUser ? (
-              <>
-                <div className="mb-2">User: {currentUser.email || currentUser.username || 'Unknown'}</div>
-                <div>Please wait while we load your data</div>
-              </>
-            ) : (
-              <div>Waiting for user authentication...</div>
-            )}
-          </div>
-          
-          {/* Progress indicators */}
-          <div className="mt-6 space-y-2">
-            <div className="flex items-center justify-center text-xs text-gray-500">
-              <div className="w-2 h-2 bg-blue-600 rounded-full mr-2 animate-pulse"></div>
-              Connecting to server...
-            </div>
-            <div className="flex items-center justify-center text-xs text-gray-500">
-              <div className="w-2 h-2 bg-blue-400 rounded-full mr-2 animate-pulse" style={{ animationDelay: '0.2s' }}></div>
-              Loading geofences...
-            </div>
-            <div className="flex items-center justify-center text-xs text-gray-500">
-              <div className="w-2 h-2 bg-blue-300 rounded-full mr-2 animate-pulse" style={{ animationDelay: '0.4s' }}></div>
-              Loading vehicles...
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // 🆕 Main UI renders only after initial data is loaded
-  return () => {
+    return () => {
       if (debounceTimeoutRef.current) {
         clearTimeout(debounceTimeoutRef.current);
       }
       if (fetchAbortControllerRef.current) {
         fetchAbortControllerRef.current.abort();
       }
-      if (saveAbortControllerRef.current) {
-        saveAbortControllerRef.current.abort();
-      }
       if (refreshIntervalRef.current) {
         clearInterval(refreshIntervalRef.current);
       }
-      if (saveRetryTimeoutRef.current) {
-        clearTimeout(saveRetryTimeoutRef.current);
-      }
     };
-  }, [currentUser, refreshAllData, uiState.savingInProgress]);
+  }, [currentUser, refreshAllData]);
 
   // 🔧 Enhanced auto-select first geofence effect
   useEffect(() => {
-    if (!uiState.loading && !uiState.savingInProgress && geofences.length > 0 && !currentGeofence && !uiState.isCreating) {
+    if (!uiState.loading && geofences.length > 0 && !currentGeofence && !uiState.isCreating) {
       const firstValid = geofences.find(validateGeofence);
       if (firstValid) {
         console.log('🎯 Auto-selecting first valid geofence:', firstValid.name);
         setCurrentGeofence(firstValid);
       }
     }
-  }, [geofences, currentGeofence, uiState.isCreating, uiState.loading, uiState.savingInProgress]);
+  }, [geofences, currentGeofence, uiState.isCreating, uiState.loading]);
 
   // 🔧 Enhanced loading state
   if (uiState.loading && !currentUser && geofences.length === 0) {
@@ -1487,7 +884,7 @@ export function GeofenceManager() {
   }
 
   return (
-    <div className="p-4 md:p-6 max-w-full mx-auto bg-white min-h-screen">
+    <div className="p-4 md:p-6 max-w-full mx-auto bg-gradient-to-br from-slate-50 to-blue-50 min-h-screen">
       {/* Enhanced Header with Refresh Button */}
       <div className="flex flex-col sm:flex-row items-center justify-between mb-6 pb-4 border-b border-slate-200/60">
         <div className="flex items-center gap-3 mb-4 sm:mb-0">
@@ -1502,15 +899,10 @@ export function GeofenceManager() {
               Manage geographic areas for vehicle monitoring
               {currentUser && ` - ${currentUser.full_name || currentUser.email}`}
             </p>
-            {/* 🆕 Data status indicator with save state */}
+            {/* 🆕 Data status indicator */}
             {uiState.dataLoadTimestamp > 0 && (
               <p className="text-xs text-slate-400 mt-1">
                 Last updated: {new Date(uiState.dataLoadTimestamp).toLocaleTimeString()}
-                {uiState.savingInProgress && (
-                  <span className="ml-2 text-blue-600 font-medium">
-                    • Saving geofence...
-                  </span>
-                )}
               </p>
             )}
           </div>
@@ -1519,17 +911,16 @@ export function GeofenceManager() {
           {/* 🆕 Manual refresh button */}
           <Button
             onClick={handleManualRefresh}
-            disabled={uiState.loading || uiState.savingInProgress}
+            disabled={uiState.loading}
             variant="outline"
             className="border-blue-200 text-blue-700 hover:bg-blue-50 flex-1 sm:flex-none"
           >
-            <RefreshCw className={`h-4 w-4 mr-2 ${(uiState.loading || uiState.savingInProgress) ? 'animate-spin' : ''}`} />
+            <RefreshCw className={`h-4 w-4 mr-2 ${uiState.loading ? 'animate-spin' : ''}`} />
             Refresh
           </Button>
           {!uiState.isCreating && (
             <Button
               onClick={handleStartCreating}
-              disabled={uiState.savingInProgress}
               className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white shadow-lg hover:shadow-xl transition-all duration-200 border-0 flex-1 sm:flex-none"
             >
               <Plus className="h-4 w-4 mr-2" />
@@ -1538,18 +929,6 @@ export function GeofenceManager() {
           )}
         </div>
       </div>
-
-      {/* 🆕 Save progress indicator */}
-      {uiState.savingInProgress && (
-        <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-          <div className="flex items-center gap-2">
-            <Loader2 className="w-4 h-4 animate-spin text-blue-600" />
-            <span className="text-blue-700 font-medium">
-              Saving geofence and refreshing data...
-            </span>
-          </div>
-        </div>
-      )}
 
       {/* Main Content */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6" style={{ minHeight: 'calc(100vh - 200px)' }}>
@@ -1585,7 +964,6 @@ export function GeofenceManager() {
                   value={newGeofence.name}
                   onChange={(e) => setNewGeofence({ ...newGeofence, name: e.target.value })}
                   className="border-blue-200 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400"
-                  disabled={uiState.savingInProgress}
                 />
                 <Select
                   value={newGeofence.ruleType}
@@ -1593,7 +971,6 @@ export function GeofenceManager() {
                     ...newGeofence, 
                     ruleType: value as "STANDARD" | "FORBIDDEN" | "STAY_IN" 
                   })}
-                  disabled={uiState.savingInProgress}
                 >
                   <SelectTrigger className="border-blue-200 focus:ring-2 focus:ring-blue-500/20">
                     <SelectValue placeholder="Select rule type" />
@@ -1611,7 +988,6 @@ export function GeofenceManager() {
                     variant={newGeofence.type === "polygon" ? "default" : "outline"}
                     size="sm"
                     onClick={() => setNewGeofence({ ...newGeofence, type: "polygon" })}
-                    disabled={uiState.savingInProgress}
                     className={`flex-1 transition-all duration-200 ${
                       newGeofence.type === "polygon"
                         ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md'
@@ -1624,7 +1000,6 @@ export function GeofenceManager() {
                     variant={newGeofence.type === "circle" ? "default" : "outline"}
                     size="sm"
                     onClick={() => setNewGeofence({ ...newGeofence, type: "circle" })}
-                    disabled={uiState.savingInProgress}
                     className={`flex-1 transition-all duration-200 ${
                       newGeofence.type === "circle"
                         ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md'
@@ -1657,10 +1032,10 @@ export function GeofenceManager() {
                 <div className="flex gap-2 pt-3 border-t border-blue-200">
                   <Button
                     onClick={handleSaveGeofence}
-                    disabled={!newGeofence.name.trim() || drawnLayers.length === 0 || uiState.loading || uiState.savingInProgress}
+                    disabled={!newGeofence.name.trim() || drawnLayers.length === 0 || uiState.loading}
                     className="flex-1 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    {uiState.savingInProgress ? (
+                    {uiState.loading ? (
                       <>
                         <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                         Saving...
@@ -1675,7 +1050,6 @@ export function GeofenceManager() {
                   <Button
                     variant="outline"
                     onClick={handleCancelCreating}
-                    disabled={uiState.savingInProgress}
                     className="flex-1 border-slate-300 text-slate-700 hover:bg-slate-50"
                   >
                     <X className="h-4 w-4 mr-2" /> Cancel
@@ -1687,25 +1061,6 @@ export function GeofenceManager() {
 
           {/* Geofence List */}
           <div className="flex-1 overflow-auto space-y-2 pr-1">
-            {/* 🆕 Debug info */}
-            {process.env.NODE_ENV === 'development' && (
-              <div className="text-xs bg-gray-100 p-2 rounded border mb-2">
-                <div><strong>Debug Info:</strong></div>
-                <div>User ID: {currentUser?.id || currentUser?.user_id || 'Not found'}</div>
-                <div>Total: {geofences.length}</div>
-                <div>Filtered: {filteredGeofences.length}</div>
-                <div>Valid: {geofences.filter(validateGeofence).length}</div>
-                <div>Search: "{uiState.searchTerm}"</div>
-                <div>Creating: {uiState.isCreating ? 'Yes' : 'No'}</div>
-                <div>Loading: {uiState.loading ? 'Yes' : 'No'}</div>
-                {geofences.length > 0 && (
-                  <div className="mt-1">
-                    <div>User IDs in data: {[...new Set(geofences.map(g => g.user_id))].join(', ')}</div>
-                  </div>
-                )}
-              </div>
-            )}
-            
             {uiState.loading && geofences.length === 0 && !uiState.isCreating ? (
               <div className="text-center py-8 text-gray-500">
                 <Loader2 className="w-8 h-8 animate-spin mx-auto mb-3 text-blue-500" />
@@ -1726,21 +1081,9 @@ export function GeofenceManager() {
                       : "Start by creating your first geofence"
                     }
                   </p>
-                  {/* 🆕 Debug info when no geofences */}
-                  {process.env.NODE_ENV === 'development' && !uiState.searchTerm && (
-                    <div className="text-xs text-gray-500 mb-4 bg-yellow-50 p-2 rounded border">
-                      Debug: {geofences.length} total, {geofences.filter(validateGeofence).length} valid
-                      {geofences.length > 0 && (
-                        <div className="mt-1">
-                          Failed validation: {geofences.filter(g => !validateGeofence(g)).map(g => g.name).join(', ')}
-                        </div>
-                      )}
-                    </div>
-                  )}
                   {!uiState.searchTerm && (
                     <Button
                       onClick={handleStartCreating}
-                      disabled={uiState.savingInProgress}
                       className="bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white shadow-lg"
                     >
                       <Plus className="h-4 w-4 mr-2" />
@@ -1771,12 +1114,6 @@ export function GeofenceManager() {
                     <div className="flex items-start justify-between mb-2 sm:mb-3">
                       <h3 className="font-semibold text-slate-800 truncate text-base sm:text-lg" title={geofence.name}>
                         {geofence.name}
-                        {/* 🆕 Show "NEW" indicator for recently saved geofences */}
-                        {uiState.lastSavedGeofenceId === geofence.geofence_id && (
-                          <Badge className="ml-2 bg-green-100 text-green-700 border-green-300 animate-pulse">
-                            NEW
-                          </Badge>
-                        )}
                       </h3>
                       <Badge className={`${getStatusColor(geofence.status)} px-2 py-1 text-xs font-medium`}>
                         {geofence.status === 'active' ? '✅ Active' : '⏸️ Inactive'}
@@ -1816,7 +1153,6 @@ export function GeofenceManager() {
                           e.stopPropagation(); 
                           handleAssignVehicles(geofence); 
                         }}
-                        disabled={uiState.savingInProgress}
                       >
                         <Car className="h-4 w-4 mr-1" /> Assign
                       </Button>
@@ -1828,7 +1164,6 @@ export function GeofenceManager() {
                           e.stopPropagation(); 
                           handleDeleteGeofence(geofence.geofence_id); 
                         }}
-                        disabled={uiState.savingInProgress}
                         title="Delete geofence"
                       >
                         <Trash2 className="h-4 w-4" />
