@@ -6,13 +6,6 @@ const nextConfig = {
     ignoreDuringBuilds: true,
   },
 
-  // ++ TAMBAHKAN BLOK INI ++
-  // Lewati pemeriksaan tipe TypeScript saat build
-  typescript: {
-    // Izinkan build produksi berhasil meskipun ada error tipe.
-    ignoreBuildErrors: true,
-  },
-
   transpilePackages: [
     "leaflet",
     "react-leaflet",
