@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
   Car, MapPin, AlertTriangle, Shield, Fuel, Zap, Clock, TrendingUp,
-  Loader2, RefreshCw, Wifi, WifiOff, ChevronDown, ChevronUp, Maximize2, Minimize2
+  Loader2, RefreshCw, Wifi, WifiOff, ChevronDown, ChevronUp
 } from "lucide-react";
 import { toast } from "sonner";
 import dynamic from 'next/dynamic';
@@ -274,7 +274,6 @@ const useAlerts = () => {
 export function Dashboard() {
   const [selectedVehicleId, setSelectedVehicleId] = useState<string | null>(null);
   const [expandedVehicleList, setExpandedVehicleList] = useState(false);
-  const [mapFullscreen, setMapFullscreen] = useState(false);
   const isOnline = useOnlineStatus();
   
   // Hooks
@@ -431,72 +430,7 @@ export function Dashboard() {
   });
 
   return (
-    <div className="relative">
-      {/* Fullscreen Map Overlay */}
-      {mapFullscreen && (
-        <div className="fixed inset-0 z-[100] bg-black">
-          <div className="relative w-full h-full">
-            <MapComponent
-              vehicles={vehiclesForMap}
-              selectedVehicleId={selectedVehicleId}
-              onVehicleClick={handleVehicleClick}
-              onMapClick={() => setSelectedVehicleId(null)}
-              height="100%"
-            />
-            
-            <button
-              onClick={() => setMapFullscreen(false)}
-              className="absolute top-4 right-4 z-50 p-3 bg-white/90 backdrop-blur rounded-lg shadow-lg hover:bg-white transition-colors"
-            >
-              <Minimize2 className="w-5 h-5 text-gray-700" />
-            </button>
-
-            {/* Vehicle Info Overlay in Fullscreen */}
-            {selectedVehicleId && (
-              <div className="absolute bottom-4 left-4 right-4 md:left-auto md:right-4 md:w-96 bg-white/95 backdrop-blur rounded-lg shadow-lg p-4 max-h-48 overflow-y-auto">
-                {(() => {
-                  const vehicle = processedVehicles.find(v => v.id === selectedVehicleId);
-                  if (!vehicle) return null;
-                  
-                  return (
-                    <div>
-                      <div className="flex items-center justify-between mb-2">
-                        <h3 className="font-semibold text-lg">{vehicle.name}</h3>
-                        <Badge 
-                          className={`${
-                            vehicle.status === 'moving' ? 'bg-green-100 text-green-700' : 
-                            vehicle.status === 'parked' ? 'bg-yellow-100 text-yellow-700' : 
-                            'bg-red-100 text-red-700'
-                          }`}
-                        >
-                          {vehicle.status}
-                        </Badge>
-                      </div>
-                      <p className="text-sm text-gray-600 mb-2">{vehicle.location}</p>
-                      <div className="grid grid-cols-3 gap-4 text-sm">
-                        <div>
-                          <span className="text-gray-500">Speed</span>
-                          <p className="font-semibold">{vehicle.speed} km/h</p>
-                        </div>
-                        <div>
-                          <span className="text-gray-500">Fuel</span>
-                          <p className="font-semibold">{(vehicle.fuel ?? 0).toFixed(0)}%</p>
-                        </div>
-                        <div>
-                          <span className="text-gray-500">Battery</span>
-                          <p className="font-semibold">{(vehicle.battery ?? 0).toFixed(1)}V</p>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })()}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      <div className="space-y-4 p-4 pb-20 md:pb-4 max-w-full overflow-x-hidden">
+    <div className="space-y-4 p-4 pb-20 md:pb-4 max-w-full overflow-x-hidden">
       {/* Status Bar - Mobile Optimized */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
         <div className="flex items-center gap-3">
@@ -531,20 +465,22 @@ export function Dashboard() {
         </button>
       </div>
 
-      {/* Stats Grid - Compact for Mobile */}
-      <div className="grid grid-cols-4 gap-2 md:gap-4">
+      {/* Stats Grid - Mobile Optimized */}
+      <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 gap-2 sm:gap-3 md:gap-4">
         {dashboardStats.map((stat, index) => {
           const colors = getStatColors(stat.color);
           return (
-            <Card key={index} className="hover:shadow-md transition-shadow">
-              <CardContent className="p-2 sm:p-3 md:p-6">
-                <div className="flex flex-col items-center text-center">
-                  <div className={`p-1.5 sm:p-2 md:p-3 rounded-lg ${colors.bg} mb-1 sm:mb-2`}>
+            <Card key={index} className="hover:shadow-lg transition-shadow">
+              <CardContent className="p-3 sm:p-4 md:p-6">
+                <div className="flex items-center justify-between mb-2 sm:mb-3">
+                  <div className={`p-2 sm:p-3 rounded-lg ${colors.bg}`}>
                     <stat.icon className={`w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 ${colors.text}`} />
                   </div>
-                  <span className="text-base sm:text-lg md:text-2xl font-bold text-slate-800">{stat.value}</span>
-                  <h3 className="text-xs font-medium text-slate-600 mt-0.5">{stat.title}</h3>
-                  <p className="text-xs text-slate-500 hidden sm:block">{stat.change}</p>
+                </div>
+                <div className="space-y-1">
+                  <h3 className="text-xs sm:text-sm font-medium text-slate-600">{stat.title}</h3>
+                  <span className="text-lg sm:text-xl md:text-2xl font-bold text-slate-800">{stat.value}</span>
+                  <p className="text-xs text-slate-500">{stat.change}</p>
                 </div>
               </CardContent>
             </Card>
@@ -552,8 +488,8 @@ export function Dashboard() {
         })}
       </div>
 
-      {/* Map - Enhanced and More Prominent */}
-      <div className="relative h-[50vh] sm:h-[60vh] md:h-[70vh] lg:h-[calc(100vh-20rem)] w-full rounded-lg overflow-hidden bg-gray-100 shadow-lg">
+      {/* Map - Mobile Optimized */}
+      <div className="relative h-64 sm:h-80 md:h-96 lg:h-[calc(100vh-24rem)] w-full rounded-lg overflow-hidden bg-gray-100">
         <MapComponent
           vehicles={vehiclesForMap}
           selectedVehicleId={selectedVehicleId}
@@ -561,19 +497,6 @@ export function Dashboard() {
           onMapClick={() => setSelectedVehicleId(null)}
           height="100%"
         />
-
-        {/* Fullscreen Toggle Button */}
-        <button
-          onClick={() => setMapFullscreen(!mapFullscreen)}
-          className="absolute top-2 right-2 sm:top-4 sm:right-4 z-50 p-2 bg-white/90 backdrop-blur rounded-lg shadow-md hover:bg-white transition-colors"
-          title={mapFullscreen ? "Exit fullscreen" : "Fullscreen"}
-        >
-          {mapFullscreen ? (
-            <Minimize2 className="w-4 h-4 sm:w-5 sm:h-5 text-gray-700" />
-          ) : (
-            <Maximize2 className="w-4 h-4 sm:w-5 sm:h-5 text-gray-700" />
-          )}
-        </button>
 
         {/* Status overlays */}
         {vehicleDataLoading && (
@@ -687,7 +610,6 @@ export function Dashboard() {
           </div>
         </CardContent>
       </Card>
-    </div>
     </div>
   );
 }

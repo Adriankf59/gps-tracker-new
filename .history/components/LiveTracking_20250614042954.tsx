@@ -4,7 +4,6 @@ import React, { useState, useEffect, useMemo, useCallback, useRef } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import {
   MapPin,
   Navigation,
@@ -24,10 +23,7 @@ import {
   ShieldAlert,
   X,
   Wifi,
-  WifiOff,
-  List,
-  ChevronUp,
-  Menu
+  WifiOff
 } from "lucide-react";
 import dynamic from 'next/dynamic';
 import { toast } from 'sonner';
@@ -37,13 +33,13 @@ import { API_BASE_URL } from '../api/file';
 const MapComponent = dynamic(() => import('./MapComponent').catch(() => ({ default: () => <div>Map not available</div> })), {
   ssr: false,
   loading: () => (
-    <div className="flex items-center justify-center h-full bg-gray-100 rounded-lg">
+    <div className="flex items-center justify-center h-96 bg-gray-100 rounded-lg">
       <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
     </div>
   )
 });
 
-// Types (unchanged)
+// Types
 interface ProjectGeofence {
   geofence_id: number;
   user_id: string;
@@ -71,6 +67,7 @@ interface Vehicle {
   year: number;
   sim_card_number: string;
   relay_status: string | null;
+  created_at?: string;
   created_at?: string;
   updated_at: string | null;
   vehicle_photo: string | null;
@@ -134,21 +131,21 @@ interface VehiclePositionHistory {
   lastChecked: Date;
 }
 
-// Constants (unchanged)
+// Constants - Using same intervals as Dashboard
 const INTERVALS = {
-  VEHICLES: 60000,
-  VEHICLE_DATA: 5000,
-  GEOFENCES: 300000,
-  ALERTS: 15000
+  VEHICLES: 60000,      // 60 seconds
+  VEHICLE_DATA: 5000,   // 5 seconds (same as Dashboard)
+  GEOFENCES: 300000,    // 5 minutes
+  ALERTS: 15000         // 15 seconds
 };
 
-// API endpoints (unchanged)
+// API endpoints
 const GEOFENCE_API = `${API_BASE_URL}/items/geofence`;
 const VEHICLE_API = `${API_BASE_URL}/items/vehicle`;
 const VEHICLE_DATA_API = `${API_BASE_URL}/items/vehicle_datas`;
 const ALERTS_API = `${API_BASE_URL}/items/alerts`;
 
-// Fetcher (unchanged)
+// Enhanced fetcher with same timeout as Dashboard
 const fetcher = async (url: string) => {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 8000);
@@ -176,7 +173,7 @@ const fetcher = async (url: string) => {
   }
 };
 
-// Utility functions (unchanged)
+// Utility functions
 const parseFloat_ = (value: string | null | undefined): number => {
   if (!value) return 0;
   const parsed = parseFloat(value);
@@ -189,7 +186,7 @@ const ensureArray = (value: any): any[] => {
   return [];
 };
 
-// Custom hooks (unchanged)
+// Custom hooks
 const useOnlineStatus = () => {
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   
@@ -225,12 +222,12 @@ const useUser = () => {
   }, []);
 };
 
-// Geofence detection utilities (unchanged)
+// Geofence detection utilities
 const isPointInCircle = (point: [number, number], center: [number, number], radius: number): boolean => {
   const [pointLng, pointLat] = point;
   const [centerLng, centerLat] = center;
   
-  const R = 6371000;
+  const R = 6371000; // Earth's radius in meters
   const dLat = (centerLat - pointLat) * Math.PI / 180;
   const dLng = (centerLng - pointLng) * Math.PI / 180;
   const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
@@ -280,7 +277,7 @@ const isVehicleInsideGeofence = (vehiclePos: [number, number], geofence: Project
   return false;
 };
 
-// Mobile-optimized Alert notification component
+// Alert notification component with proper z-index
 const GeofenceViolationNotification = ({ 
   alert, 
   onDismiss 
@@ -301,9 +298,9 @@ const GeofenceViolationNotification = ({
 
   const getAlertIcon = (type: string) => {
     switch (type) {
-      case 'violation_enter': return <ShieldAlert className="w-4 h-4 sm:w-5 sm:h-5 text-red-500" />;
-      case 'violation_exit': return <AlertTriangle className="w-4 h-4 sm:w-5 sm:h-5 text-orange-500" />;
-      default: return <Shield className="w-4 h-4 sm:w-5 sm:h-5 text-blue-500" />;
+      case 'violation_enter': return <ShieldAlert className="w-5 h-5 text-red-500" />;
+      case 'violation_exit': return <AlertTriangle className="w-5 h-5 text-orange-500" />;
+      default: return <Shield className="w-5 h-5 text-blue-500" />;
     }
   };
 
@@ -311,14 +308,15 @@ const GeofenceViolationNotification = ({
 
   return (
     <div 
-      className="fixed top-16 left-2 right-2 sm:left-auto sm:right-4 sm:w-96 transition-all duration-300 ease-in-out z-[9999]"
+      className="fixed top-20 right-4 transition-all duration-300 ease-in-out"
+      style={{ zIndex: 9999 }} // Ensure it's above everything including map
     >
-      <Card className="shadow-2xl border-2 border-red-500 bg-red-50">
-        <CardHeader className="pb-2 sm:pb-3 bg-red-100">
+      <Card className="w-96 shadow-2xl border-2 border-red-500 bg-red-50">
+        <CardHeader className="pb-3 bg-red-100">
           <div className="flex items-start justify-between">
             <div className="flex items-center gap-2">
               {getAlertIcon(alert.alert_type)}
-              <CardTitle className="text-base sm:text-lg font-bold text-slate-800">
+              <CardTitle className="text-lg font-bold text-slate-800">
                 🚨 Pelanggaran Geofence!
               </CardTitle>
             </div>
@@ -335,13 +333,13 @@ const GeofenceViolationNotification = ({
             </Button>
           </div>
         </CardHeader>
-        <CardContent className="pt-2 pb-3">
-          <div className="space-y-2 sm:space-y-3">
-            <p className="text-xs sm:text-sm font-medium text-slate-700">
+        <CardContent className="pt-0">
+          <div className="space-y-3">
+            <p className="text-sm font-medium text-slate-700">
               {alert.alert_message}
             </p>
             
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500">
+            <div className="flex items-center gap-4 text-xs text-slate-500">
               <div className="flex items-center gap-1">
                 <Clock className="w-3 h-3" />
                 {new Date(alert.timestamp).toLocaleTimeString('id-ID')}
@@ -358,7 +356,7 @@ const GeofenceViolationNotification = ({
                 setIsVisible(false);
                 setTimeout(onDismiss, 300);
               }}
-              className="w-full bg-red-600 hover:bg-red-700 h-8 text-xs sm:text-sm"
+              className="w-full bg-red-600 hover:bg-red-700"
             >
               Tutup
             </Button>
@@ -370,26 +368,23 @@ const GeofenceViolationNotification = ({
 };
 
 export function LiveTracking() {
-  // All state management (unchanged)
   const [selectedVehicleId, setSelectedVehicleId] = useState<string | null>(null);
   const [selectedVehicleName, setSelectedVehicleName] = useState<string | null>(null);
   const [selectedVehicleCoords, setSelectedVehicleCoords] = useState<[number, number] | null>(null);
   const [assignedGeofenceForDisplay, setAssignedGeofenceForDisplay] = useState<ProjectGeofence | null>(null);
   const [isInitialized, setIsInitialized] = useState(false);
   const [lastUpdate, setLastUpdate] = useState(new Date());
+  
+  // State for geofence violation detection
   const [activeAlert, setActiveAlert] = useState<GeofenceAlert | null>(null);
   const [vehiclePositionHistory, setVehiclePositionHistory] = useState<Map<string, VehiclePositionHistory>>(new Map());
   const [recentAlerts, setRecentAlerts] = useState<GeofenceAlert[]>([]);
   const alertCooldownRef = useRef<Map<string, Date>>(new Map());
-  
-  // Mobile UI states
-  const [showVehicleSheet, setShowVehicleSheet] = useState(false);
-  const [showStatsSheet, setShowStatsSheet] = useState(false);
 
   const isOnline = useOnlineStatus();
   const { userData, userId } = useUser();
 
-  // All data fetching hooks (unchanged)
+  // Vehicles hook with same config as Dashboard
   const {
     data: vehiclesData,
     error: vehiclesError,
@@ -414,6 +409,7 @@ export function LiveTracking() {
 
   const vehicles = useMemo(() => ensureArray(vehiclesData?.data || vehiclesData), [vehiclesData]);
 
+  // Extract GPS IDs
   const gpsIds = useMemo(() => {
     return vehicles
       .map(v => v.gps_id)
@@ -421,6 +417,7 @@ export function LiveTracking() {
       .join(',');
   }, [vehicles]);
 
+  // Vehicle data hook with same config as Dashboard
   const {
     data: vehicleDataData,
     error: vehicleDataError,
@@ -440,6 +437,7 @@ export function LiveTracking() {
 
   const vehicleDataPoints = useMemo(() => ensureArray(vehicleDataData?.data || vehicleDataData), [vehicleDataData]);
 
+  // Geofences hook
   const {
     data: geofencesData,
     error: geofencesError,
@@ -463,7 +461,7 @@ export function LiveTracking() {
     }));
   }, [geofencesData]);
 
-  // All utility functions (unchanged)
+  // Utility functions
   const getLocationName = useCallback((latStr: string | null, lngStr: string | null): string => {
     if (!latStr || !lngStr) return 'Location unknown';
     
@@ -547,7 +545,7 @@ export function LiveTracking() {
     }
   }, []);
 
-  // Save alert to API (unchanged)
+  // Save alert to API
   const saveAlertToAPI = useCallback(async (alert: GeofenceAlert) => {
     try {
       const response = await fetch(ALERTS_API, {
@@ -574,7 +572,7 @@ export function LiveTracking() {
     }
   }, []);
 
-  // Geofence violation detection (unchanged)
+  // Geofence violation detection
   const checkGeofenceViolations = useCallback(async (vehicle: VehicleWithTracking) => {
     if (!vehicle.latestData?.latitude || !vehicle.latestData?.longitude || !vehicle.isOnline) {
       return;
@@ -676,7 +674,7 @@ export function LiveTracking() {
     }
   }, [geofences, vehiclePositionHistory, validateGeofenceCoordinates, saveAlertToAPI]);
 
-  // Process vehicles (unchanged)
+  // Process vehicles
   const processedVehicles = useMemo((): VehicleWithTracking[] => {
     if (!vehicles.length) return [];
     
@@ -719,7 +717,7 @@ export function LiveTracking() {
     });
   }, [vehicles, vehicleDataPoints, getVehicleStatus, getLocationName, getRelativeTime, isVehicleOnline]);
 
-  // Processed vehicle for map (unchanged)
+  // Processed vehicle for map
   const processedVehicleForMap = useMemo((): ProcessedVehicleForMap[] => {
     if (!selectedVehicleId) return [];
     
@@ -751,7 +749,7 @@ export function LiveTracking() {
     }];
   }, [processedVehicles, selectedVehicleId]);
 
-  // Selected geofence detail (unchanged)
+  // Selected geofence detail
   const {
     data: selectedGeofenceDetailSWR,
     error: selectedGeofenceError
@@ -785,18 +783,17 @@ export function LiveTracking() {
     }
   );
 
-  // Processed geofence for map (unchanged)
+  // Processed geofence for map
   const processedGeofenceForMapDisplay = useMemo((): ProjectGeofence[] => {
     return assignedGeofenceForDisplay && validateGeofenceCoordinates(assignedGeofenceForDisplay)
       ? [assignedGeofenceForDisplay]
       : [];
   }, [assignedGeofenceForDisplay, validateGeofenceCoordinates]);
 
-  // Event handlers with mobile optimization
+  // Event handlers
   const handleVehicleSelect = useCallback(async (vehicle: VehicleWithTracking) => {
     setSelectedVehicleId(vehicle.vehicle_id);
     setSelectedVehicleName(vehicle.name);
-    setShowVehicleSheet(false); // Close sheet on mobile after selection
 
     if (vehicle.latestData?.latitude && vehicle.latestData?.longitude) {
       const lat = parseFloat_(vehicle.latestData.latitude);
@@ -855,7 +852,7 @@ export function LiveTracking() {
     }
   }, [isOnline, mutateVehicles, mutateVehicleData, mutateGeofences]);
 
-  // All useEffects (unchanged)
+  // Initialize
   useEffect(() => {
     if (typeof window === 'undefined' || isInitialized) return;
     
@@ -876,6 +873,7 @@ export function LiveTracking() {
     }
   }, [selectedVehicleId, selectedVehicleName, isInitialized]);
 
+  // Auto-select first vehicle
   useEffect(() => {
     if (processedVehicles.length > 0 && !selectedVehicleId && isInitialized) {
       const vehicleToSelect = processedVehicles[0];
@@ -885,6 +883,7 @@ export function LiveTracking() {
     }
   }, [processedVehicles, selectedVehicleId, handleVehicleSelect, isInitialized]);
 
+  // Check geofence violations
   useEffect(() => {
     if (processedVehicles.length > 0 && geofences.length > 0) {
       const vehiclesWithGeofences = processedVehicles.filter(v => 
@@ -897,7 +896,7 @@ export function LiveTracking() {
     }
   }, [processedVehicles, geofences, checkGeofenceViolations]);
 
-  // Style helpers (unchanged)
+  // Style helpers
   const getStatusColorClass = useCallback((status: VehicleWithTracking['status']): string => {
     const statusMap = {
       'moving': 'bg-green-100 text-green-800 border-green-200',
@@ -907,7 +906,7 @@ export function LiveTracking() {
     return statusMap[status] || 'bg-gray-100 text-gray-800 border-gray-200';
   }, []);
 
-  // Statistics (unchanged)
+  // Statistics
   const { onlineVehicles, movingVehiclesCount, parkedVehiclesCount, avgSpeed, avgFuel } = useMemo(() => {
     const online = processedVehicles.filter(v => v.isOnline);
     const moving = online.filter(v => v.status === 'moving');
@@ -933,16 +932,11 @@ export function LiveTracking() {
     };
   }, [processedVehicles]);
 
-  // Loading and error states (unchanged)
+  // Loading and error states
   const isLoadingInitial = vehiclesLoading && processedVehicles.length === 0;
   const isRefreshing = !isLoadingInitial && (vehiclesLoading || vehicleDataLoading || geofencesLoading);
   const hasError = !!(vehiclesError || vehicleDataError);
   const hasCriticalError = vehiclesError && processedVehicles.length === 0;
-
-  // Get selected vehicle
-  const selectedVehicle = useMemo(() => {
-    return processedVehicles.find(v => v.vehicle_id === selectedVehicleId);
-  }, [processedVehicles, selectedVehicleId]);
 
   // Loading state
   if (isLoadingInitial && !hasCriticalError) {
@@ -977,7 +971,7 @@ export function LiveTracking() {
   }
 
   return (
-    <div className="h-screen flex flex-col bg-slate-50">
+    <div className="space-y-6 p-4 sm:p-6 bg-slate-50 min-h-screen">
       {/* Geofence Violation Notification */}
       {activeAlert && (
         <GeofenceViolationNotification
@@ -986,214 +980,282 @@ export function LiveTracking() {
         />
       )}
 
-      {/* Mobile-optimized Header */}
-      <div className="bg-white border-b p-3 sm:p-4 flex-shrink-0">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2 flex-1 min-w-0">
-            <Navigation className="w-5 h-5 sm:w-6 sm:h-6 text-blue-600 flex-shrink-0" />
-            <div className="min-w-0 flex-1">
-              <h1 className="text-lg sm:text-xl lg:text-2xl font-bold text-slate-800 truncate">Live Tracking</h1>
-              <div className="flex items-center gap-2 text-xs sm:text-sm text-slate-600">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pb-4 border-b border-slate-200">
+        <div className="flex items-center gap-3">
+          <Navigation className="w-8 h-8 text-blue-600" />
+          <div>
+            <h1 className="text-2xl font-bold text-slate-800">Live Tracking</h1>
+            <div className="flex items-center gap-2 flex-wrap mt-1">
+              <div className="flex items-center gap-2">
                 {isOnline ? (
-                  <Wifi className="w-3 h-3 sm:w-4 sm:h-4 text-green-600 flex-shrink-0" />
+                  <Wifi className="w-4 h-4 text-green-600" />
                 ) : (
-                  <WifiOff className="w-3 h-3 sm:w-4 sm:h-4 text-red-600 flex-shrink-0" />
+                  <WifiOff className="w-4 h-4 text-red-600" />
                 )}
-                <span className="truncate">{processedVehicles.length} vehicles</span>
-                {recentAlerts.length > 0 && (
-                  <Badge variant="destructive" className="text-xs px-1.5 py-0">
-                    <Bell className="w-3 h-3 mr-0.5" />
-                    {recentAlerts.length}
-                  </Badge>
-                )}
+                <span className={`text-sm font-medium ${isOnline ? 'text-green-600' : 'text-red-600'}`}>
+                  {isOnline ? 'Connected' : 'Offline'}
+                </span>
               </div>
+              
+              {isOnline && (
+                <div className="flex items-center gap-2">
+                  <div className={`w-2 h-2 rounded-full ${vehicleDataLoading ? 'bg-blue-500 animate-pulse' : 'bg-gray-300'}`} />
+                  <span className="text-sm text-gray-600">
+                    Last update: {lastUpdate.toLocaleTimeString()}
+                  </span>
+                </div>
+              )}
+              
+              <p className="text-sm text-slate-600">
+                Fleet status ({processedVehicles.length} vehicles)
+              </p>
+              
+              {selectedVehicleName && assignedGeofenceForDisplay && (
+                <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700 border-blue-300">
+                  <Shield className="w-3 h-3 mr-1" />
+                  {assignedGeofenceForDisplay.name} ({assignedGeofenceForDisplay.rule_type})
+                </Badge>
+              )}
+              
+              {recentAlerts.length > 0 && (
+                <Badge variant="destructive" className="text-xs bg-red-600 text-white">
+                  <Bell className="w-3 h-3 mr-1" />
+                  {recentAlerts.length} Alert{recentAlerts.length > 1 ? 's' : ''}
+                </Badge>
+              )}
             </div>
           </div>
-          
-          <div className="flex items-center gap-2 flex-shrink-0">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleRefresh}
-              disabled={vehicleDataLoading || !isOnline}
-              className="h-8 px-2"
-            >
-              <RefreshCw className={`w-4 h-4 ${vehicleDataLoading ? 'animate-spin' : ''}`} />
-              <span className="hidden sm:inline ml-1">Refresh</span>
-            </Button>
-            
-            {/* Mobile Vehicle List Button */}
-            <Sheet open={showVehicleSheet} onOpenChange={setShowVehicleSheet}>
-              <SheetTrigger asChild>
-                <Button variant="outline" size="sm" className="sm:hidden h-8 px-2">
-                  <List className="w-4 h-4" />
-                </Button>
-              </SheetTrigger>
-              <SheetContent side="bottom" className="h-[75vh]">
-                <SheetHeader className="pb-4">
-                  <SheetTitle>Select Vehicle ({processedVehicles.length})</SheetTitle>
-                </SheetHeader>
-                <div className="overflow-y-auto -mx-6 px-6">
-                  <VehicleList
-                    vehicles={processedVehicles}
-                    selectedVehicleId={selectedVehicleId}
-                    onVehicleSelect={handleVehicleSelect}
-                    getStatusColorClass={getStatusColorClass}
-                    assignedGeofenceForDisplay={assignedGeofenceForDisplay}
-                    compact={false}
-                  />
-                </div>
-              </SheetContent>
-            </Sheet>
-          </div>
         </div>
+        <Button
+          onClick={handleRefresh}
+          disabled={vehicleDataLoading || !isOnline}
+          className="flex items-center gap-2 px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
+        >
+          <RefreshCw className={`w-4 h-4 ${vehicleDataLoading ? 'animate-spin' : ''}`} />
+          Refresh
+        </Button>
       </div>
 
-      {/* Main Content - Mobile optimized grid */}
-      <div className="flex-1 flex flex-col sm:grid sm:grid-cols-3 lg:grid-cols-4 gap-0 sm:gap-4 sm:p-4 overflow-hidden">
-        {/* Map - Full screen on mobile */}
-        <div className="flex-1 sm:col-span-2 lg:col-span-3 relative">
-          <div className="h-full sm:rounded-lg overflow-hidden">
-            <MapComponent
-              vehicles={processedVehicleForMap}
-              selectedVehicleId={selectedVehicleId}
-              centerCoordinates={selectedVehicleCoords}
-              zoomLevel={selectedVehicleId && selectedVehicleCoords ? 16 : 6}
-              onVehicleClick={handleMapVehicleClick}
-              onMapClick={() => {}}
-              displayGeofences={processedGeofenceForMapDisplay}
-            />
-            
-            {/* Status overlays */}
-            {vehicleDataLoading && (
-              <div className="absolute top-2 left-2 sm:top-4 sm:left-4 z-10">
-                <Card className="bg-blue-50/95 backdrop-blur border-blue-200">
-                  <CardContent className="p-2 sm:p-3">
-                    <div className="flex items-center gap-2">
-                      <Loader2 className="w-3 h-3 sm:w-4 sm:h-4 animate-spin text-blue-600" />
-                      <span className="text-xs sm:text-sm text-blue-700">Updating...</span>
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
-            )}
-
-            {!isOnline && (
-              <div className="absolute top-2 left-2 sm:top-4 sm:left-4 z-10">
-                <Card className="bg-red-50/95 backdrop-blur border-red-200">
-                  <CardContent className="p-2 sm:p-3">
-                    <div className="flex items-center gap-2">
-                      <WifiOff className="w-3 h-3 sm:w-4 sm:h-4 text-red-600" />
-                      <span className="text-xs sm:text-sm text-red-700">Offline</span>
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
-            )}
-
-            {/* Mobile Selected Vehicle Info Overlay */}
-            {selectedVehicle && (
-              <div className="absolute bottom-0 left-0 right-0 sm:hidden bg-white border-t shadow-lg">
-                <div className="p-3">
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-2 min-w-0">
-                      <Car className="w-4 h-4 text-slate-600 flex-shrink-0" />
-                      <span className="font-medium text-sm truncate">{selectedVehicle.name}</span>
-                    </div>
-                    <Badge className={`text-xs ${getStatusColorClass(selectedVehicle.status)}`}>
-                      {selectedVehicle.status}
-                    </Badge>
+      {/* Main Content */}
+      <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6">
+        {/* Map with proper z-index */}
+        <div className="md:col-span-2 lg:col-span-3">
+          <Card className="overflow-hidden shadow-lg border rounded-xl">
+            <CardContent className="p-0">
+              <div 
+                className="rounded-b-xl overflow-hidden m-4 border border-slate-200 relative" 
+                style={{ height: 'calc(100vh - 370px)', minHeight: '450px', zIndex: 1 }}
+              >
+                <MapComponent
+                  vehicles={processedVehicleForMap}
+                  selectedVehicleId={selectedVehicleId}
+                  centerCoordinates={selectedVehicleCoords}
+                  zoomLevel={selectedVehicleId && selectedVehicleCoords ? 16 : 6}
+                  onVehicleClick={handleMapVehicleClick}
+                  onMapClick={() => {}}
+                  displayGeofences={processedGeofenceForMapDisplay}
+                />
+                
+                {/* Status overlays with proper z-index */}
+                {vehicleDataLoading && (
+                  <div className="absolute top-4 left-4" style={{ zIndex: 1000 }}>
+                    <Card className="bg-blue-50/95 backdrop-blur border-blue-200">
+                      <CardContent className="p-3">
+                        <div className="flex items-center gap-2">
+                          <Loader2 className="w-4 h-4 animate-spin text-blue-600" />
+                          <span className="text-sm text-blue-700">Updating...</span>
+                        </div>
+                      </CardContent>
+                    </Card>
                   </div>
-                  
-                  {assignedGeofenceForDisplay && (
-                    <div className="flex items-center gap-1 text-xs text-blue-600 mb-2">
-                      <Shield className="w-3 h-3" />
-                      <span className="truncate">{assignedGeofenceForDisplay.name}</span>
-                    </div>
-                  )}
-                  
-                  <div className="grid grid-cols-3 gap-2 text-xs">
-                    <div className="text-center">
-                      <Gauge className="w-4 h-4 mx-auto text-blue-500 mb-1" />
-                      <p>{selectedVehicle.latestData?.speed || 0} km/h</p>
-                    </div>
-                    <div className="text-center">
-                      <Fuel className="w-4 h-4 mx-auto text-orange-500 mb-1" />
-                      <p>{selectedVehicle.latestData?.fuel_level ? 
-                        `${parseFloat_(selectedVehicle.latestData.fuel_level).toFixed(0)}%` : 'N/A'}</p>
-                    </div>
-                    <div className="text-center">
-                      <Clock className="w-4 h-4 mx-auto text-slate-500 mb-1" />
-                      <p>{selectedVehicle.lastUpdateString}</p>
-                    </div>
+                )}
+
+                {!isOnline && (
+                  <div className="absolute top-4 left-4" style={{ zIndex: 1000 }}>
+                    <Card className="bg-red-50/95 backdrop-blur border-red-200">
+                      <CardContent className="p-3">
+                        <div className="flex items-center gap-2">
+                          <WifiOff className="w-4 h-4 text-red-600" />
+                          <span className="text-sm text-red-700">Offline</span>
+                        </div>
+                      </CardContent>
+                    </Card>
                   </div>
-                </div>
+                )}
               </div>
-            )}
-          </div>
+            </CardContent>
+          </Card>
         </div>
 
-        {/* Desktop Vehicle List */}
-        <div className="hidden sm:block overflow-y-auto">
-          <Card className="h-full">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base">Vehicles</CardTitle>
-            </CardHeader>
-            <CardContent className="p-3">
-              <VehicleList
-                vehicles={processedVehicles}
-                selectedVehicleId={selectedVehicleId}
-                onVehicleSelect={handleVehicleSelect}
-                getStatusColorClass={getStatusColorClass}
-                assignedGeofenceForDisplay={assignedGeofenceForDisplay}
-                compact={true}
-              />
+        {/* Vehicle List */}
+        <div className="space-y-4 md:max-h-[calc(100vh-180px)] md:overflow-y-auto custom-scrollbar pr-1">
+          <Card className="shadow-md border rounded-xl">
+            <CardContent className="p-3 space-y-2.5 max-h-[calc(100vh-280px)] md:max-h-none overflow-y-auto md:overflow-visible custom-scrollbar-inner">
+              {processedVehicles.length > 0 ? (
+                processedVehicles.map((vehicle) => (
+                  <div
+                    key={vehicle.vehicle_id}
+                    className={`flex flex-col p-3 cursor-pointer rounded-lg transition-all duration-150 ease-in-out border hover:shadow-md
+                      ${selectedVehicleId === vehicle.vehicle_id
+                        ? 'bg-blue-100 border-blue-500 ring-2 ring-blue-500 shadow-lg'
+                        : 'bg-white border-slate-200 hover:border-slate-300'
+                      }`}
+                    onClick={() => handleVehicleSelect(vehicle)}
+                  >
+                    {/* Vehicle Header */}
+                    <div className="flex items-center justify-between mb-1.5">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <Car className={`w-4 h-4 shrink-0 ${selectedVehicleId === vehicle.vehicle_id ? 'text-blue-700' : 'text-slate-500'}`} />
+                        <span className="font-medium text-sm text-slate-800 truncate" title={vehicle.name}>
+                          {vehicle.name}
+                        </span>
+                        {selectedVehicleId === vehicle.vehicle_id && (
+                          <Eye className="w-3.5 h-3.5 text-blue-700 shrink-0" />
+                        )}
+                        {vehicle.geofence_id && (
+                          <span title="Has assigned geofence">
+                            <Shield className="w-3.5 h-3.5 text-green-600 shrink-0" />
+                          </span>
+                        )}
+                      </div>
+                      <Badge className={`text-xs px-1.5 py-0.5 font-medium ${getStatusColorClass(vehicle.isOnline ? vehicle.status : 'offline')}`}>
+                        {vehicle.isOnline ? vehicle.status.charAt(0).toUpperCase() + vehicle.status.slice(1) : 'Offline'}
+                      </Badge>
+                    </div>
+                    
+                    {/* Location */}
+                    <div className="text-xs text-slate-500 mb-1.5 flex items-center gap-1 truncate">
+                      <MapPin className="w-3 h-3 text-slate-400 shrink-0" />
+                      <span className="truncate" title={vehicle.location}>{vehicle.location}</span>
+                    </div>
+                    
+                    {/* Geofence Info */}
+                    {vehicle.geofence_id && selectedVehicleId === vehicle.vehicle_id && assignedGeofenceForDisplay && (
+                      <div className="text-xs text-blue-600 mb-1.5 flex items-center gap-1 truncate">
+                        <Shield className="w-3 h-3 text-blue-500 shrink-0" />
+                        <span className="truncate" title={`Geofence: ${assignedGeofenceForDisplay.name}`}>
+                          Geofence: {assignedGeofenceForDisplay.name}
+                        </span>
+                      </div>
+                    )}
+                    
+                    {/* Metrics */}
+                    <div className="grid grid-cols-3 gap-x-2 gap-y-1 text-xs text-slate-600 mb-1.5">
+                      <div className="flex items-center gap-1" title="Speed">
+                        <Gauge className="w-3 h-3 text-blue-500 shrink-0" />
+                        <span>{vehicle.latestData?.speed ?? 0} km/h</span>
+                      </div>
+                      <div className="flex items-center gap-1" title="Fuel">
+                        <Fuel className="w-3 h-3 text-orange-500 shrink-0" />
+                        <span>
+                          {vehicle.latestData?.fuel_level 
+                            ? `${parseFloat_(vehicle.latestData.fuel_level).toFixed(0)}%` 
+                            : 'N/A'
+                          }
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1" title="Battery">
+                        <Zap className="w-3 h-3 text-green-500 shrink-0" />
+                        <span>
+                          {vehicle.latestData?.battery_level 
+                            ? `${parseFloat_(vehicle.latestData.battery_level).toFixed(1)}V` 
+                            : 'N/A'
+                          }
+                        </span>
+                      </div>
+                    </div>
+                    
+                    {/* Footer */}
+                    <div className="flex items-center justify-between pt-1.5 border-t border-slate-200/80 mt-1">
+                      <div className="flex items-center gap-1" title="Satellites">
+                        <Satellite className="w-3 h-3 text-slate-400" />
+                        <span className="text-xs text-slate-500">{vehicle.latestData?.satellites_used ?? 0}</span>
+                      </div>
+                      <div className="flex items-center gap-1" title="Last Update">
+                        <Clock className="w-3 h-3 text-slate-400" />
+                        <span className="text-xs text-slate-500">{vehicle.lastUpdateString}</span>
+                      </div>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="text-center py-10">
+                  <Car className="w-10 h-10 text-slate-300 mx-auto mb-3" />
+                  <p className="text-slate-500 text-sm">
+                    {hasError ? "Failed to load vehicles." : "No vehicles found."}
+                  </p>
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>
       </div>
 
-      {/* Mobile Stats Button - Hidden when selected vehicle overlay is shown */}
-      <div className={`sm:hidden ${selectedVehicle ? 'hidden' : ''}`}>
-        <Sheet open={showStatsSheet} onOpenChange={setShowStatsSheet}>
-          <SheetTrigger asChild>
-            <Button 
-              className="fixed bottom-20 right-4 rounded-full shadow-lg bg-blue-600 hover:bg-blue-700 z-10"
-              size="sm"
-            >
-              <ChevronUp className="w-4 h-4 mr-1" />
-              Stats
-            </Button>
-          </SheetTrigger>
-          <SheetContent side="bottom" className="h-auto">
-            <SheetHeader className="pb-4">
-              <SheetTitle>Fleet Statistics</SheetTitle>
-            </SheetHeader>
-            <StatsGrid
-              movingVehiclesCount={movingVehiclesCount}
-              parkedVehiclesCount={parkedVehiclesCount}
-              avgSpeed={avgSpeed}
-              avgFuel={avgFuel}
-              mobile={true}
-            />
-          </SheetContent>
-        </Sheet>
-      </div>
-
-      {/* Desktop Stats - Hidden on mobile */}
-      <div className="hidden sm:block p-4 bg-white border-t">
-        <StatsGrid
-          movingVehiclesCount={movingVehiclesCount}
-          parkedVehiclesCount={parkedVehiclesCount}
-          avgSpeed={avgSpeed}
-          avgFuel={avgFuel}
-          mobile={false}
-        />
-      </div>
+      {/* Statistics Cards */}
+      {processedVehicles.length > 0 && (
+        <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-4 pt-2">
+          <Card className="shadow-sm hover:shadow-md transition-shadow">
+            <CardContent className="pt-5 pb-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-2xl font-bold text-green-600">{movingVehiclesCount}</p>
+                  <p className="text-xs text-slate-500 uppercase">Moving</p>
+                </div>
+                <div className="p-2 bg-green-100 rounded-full">
+                  <Navigation className="w-4 h-4 text-green-600" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          
+          <Card className="shadow-sm hover:shadow-md transition-shadow">
+            <CardContent className="pt-5 pb-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-2xl font-bold text-yellow-600">{parkedVehiclesCount}</p>
+                  <p className="text-xs text-slate-500 uppercase">Parked</p>
+                </div>
+                <div className="p-2 bg-yellow-100 rounded-full">
+                  <Car className="w-4 h-4 text-yellow-600" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          
+          <Card className="shadow-sm hover:shadow-md transition-shadow">
+            <CardContent className="pt-5 pb-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-2xl font-bold text-blue-600">{avgSpeed}</p>
+                  <p className="text-xs text-slate-500 uppercase">Avg Speed (km/h)</p>
+                </div>
+                <div className="p-2 bg-blue-100 rounded-full">
+                  <Gauge className="w-4 h-4 text-blue-600" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          
+          <Card className="shadow-sm hover:shadow-md transition-shadow">
+            <CardContent className="pt-5 pb-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-2xl font-bold text-orange-600">{avgFuel}</p>
+                  <p className="text-xs text-slate-500 uppercase">Avg Fuel (%)</p>
+                </div>
+                <div className="p-2 bg-orange-100 rounded-full">
+                  <Fuel className="w-4 h-4 text-orange-600" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
       {/* Real-time Status Indicator */}
       {!hasError && (
-        <div className={`fixed ${selectedVehicle ? 'bottom-32' : 'bottom-4'} right-4 sm:bottom-4 z-10`}>
+        <div className="fixed bottom-4 right-4 z-50">
           <div className="flex items-center gap-2 bg-white shadow-lg border border-slate-200 rounded-full px-3 py-2">
             <div className={`w-2 h-2 rounded-full ${isRefreshing ? 'bg-blue-500 animate-pulse' : 'bg-green-500'}`}></div>
             <span className="text-xs text-slate-600 font-medium">
@@ -1205,197 +1267,3 @@ export function LiveTracking() {
     </div>
   );
 }
-
-// Vehicle List Component
-const VehicleList = ({ 
-  vehicles, 
-  selectedVehicleId, 
-  onVehicleSelect, 
-  getStatusColorClass, 
-  assignedGeofenceForDisplay,
-  compact 
-}: {
-  vehicles: VehicleWithTracking[];
-  selectedVehicleId: string | null;
-  onVehicleSelect: (vehicle: VehicleWithTracking) => void;
-  getStatusColorClass: (status: VehicleWithTracking['status']) => string;
-  assignedGeofenceForDisplay: ProjectGeofence | null;
-  compact: boolean;
-}) => {
-  if (vehicles.length === 0) {
-    return (
-      <div className="text-center py-10">
-        <Car className="w-10 h-10 text-slate-300 mx-auto mb-3" />
-        <p className="text-slate-500 text-sm">No vehicles found.</p>
-      </div>
-    );
-  }
-
-  return (
-    <div className="space-y-2.5">
-      {vehicles.map((vehicle) => (
-        <div
-          key={vehicle.vehicle_id}
-          className={`flex flex-col p-3 cursor-pointer rounded-lg transition-all duration-150 ease-in-out border hover:shadow-md
-            ${selectedVehicleId === vehicle.vehicle_id
-              ? 'bg-blue-100 border-blue-500 ring-2 ring-blue-500 shadow-lg'
-              : 'bg-white border-slate-200 hover:border-slate-300'
-            }`}
-          onClick={() => onVehicleSelect(vehicle)}
-        >
-          {/* Vehicle Header */}
-          <div className="flex items-center justify-between mb-1.5">
-            <div className="flex items-center gap-2 min-w-0">
-              <Car className={`w-4 h-4 shrink-0 ${selectedVehicleId === vehicle.vehicle_id ? 'text-blue-700' : 'text-slate-500'}`} />
-              <span className="font-medium text-sm text-slate-800 truncate" title={vehicle.name}>
-                {vehicle.name}
-              </span>
-              {selectedVehicleId === vehicle.vehicle_id && (
-                <Eye className="w-3.5 h-3.5 text-blue-700 shrink-0" />
-              )}
-              {vehicle.geofence_id && (
-                <span title="Has assigned geofence">
-                  <Shield className="w-3.5 h-3.5 text-green-600 shrink-0" />
-                </span>
-              )}
-            </div>
-            <Badge className={`text-xs px-1.5 py-0.5 font-medium ${getStatusColorClass(vehicle.isOnline ? vehicle.status : 'offline')}`}>
-              {vehicle.isOnline ? vehicle.status.charAt(0).toUpperCase() + vehicle.status.slice(1) : 'Offline'}
-            </Badge>
-          </div>
-          
-          {/* Location */}
-          <div className="text-xs text-slate-500 mb-1.5 flex items-center gap-1 truncate">
-            <MapPin className="w-3 h-3 text-slate-400 shrink-0" />
-            <span className="truncate" title={vehicle.location}>{vehicle.location}</span>
-          </div>
-          
-          {/* Geofence Info */}
-          {vehicle.geofence_id && selectedVehicleId === vehicle.vehicle_id && assignedGeofenceForDisplay && !compact && (
-            <div className="text-xs text-blue-600 mb-1.5 flex items-center gap-1 truncate">
-              <Shield className="w-3 h-3 text-blue-500 shrink-0" />
-              <span className="truncate" title={`Geofence: ${assignedGeofenceForDisplay.name}`}>
-                Geofence: {assignedGeofenceForDisplay.name}
-              </span>
-            </div>
-          )}
-          
-          {/* Metrics */}
-          <div className={`grid ${compact ? 'grid-cols-2' : 'grid-cols-3'} gap-x-2 gap-y-1 text-xs text-slate-600 mb-1.5`}>
-            <div className="flex items-center gap-1" title="Speed">
-              <Gauge className="w-3 h-3 text-blue-500 shrink-0" />
-              <span>{vehicle.latestData?.speed ?? 0} km/h</span>
-            </div>
-            <div className="flex items-center gap-1" title="Fuel">
-              <Fuel className="w-3 h-3 text-orange-500 shrink-0" />
-              <span>
-                {vehicle.latestData?.fuel_level 
-                  ? `${parseFloat_(vehicle.latestData.fuel_level).toFixed(0)}%` 
-                  : 'N/A'
-                }
-              </span>
-            </div>
-            {!compact && (
-              <div className="flex items-center gap-1" title="Battery">
-                <Zap className="w-3 h-3 text-green-500 shrink-0" />
-                <span>
-                  {vehicle.latestData?.battery_level 
-                    ? `${parseFloat_(vehicle.latestData.battery_level).toFixed(1)}V` 
-                    : 'N/A'
-                  }
-                </span>
-              </div>
-            )}
-          </div>
-          
-          {/* Footer */}
-          <div className="flex items-center justify-between pt-1.5 border-t border-slate-200/80 mt-1">
-            <div className="flex items-center gap-1" title="Satellites">
-              <Satellite className="w-3 h-3 text-slate-400" />
-              <span className="text-xs text-slate-500">{vehicle.latestData?.satellites_used ?? 0}</span>
-            </div>
-            <div className="flex items-center gap-1" title="Last Update">
-              <Clock className="w-3 h-3 text-slate-400" />
-              <span className="text-xs text-slate-500">{vehicle.lastUpdateString}</span>
-            </div>
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-};
-
-// Stats Grid Component
-const StatsGrid = ({ 
-  movingVehiclesCount, 
-  parkedVehiclesCount, 
-  avgSpeed, 
-  avgFuel,
-  mobile 
-}: {
-  movingVehiclesCount: number;
-  parkedVehiclesCount: number;
-  avgSpeed: number;
-  avgFuel: number;
-  mobile: boolean;
-}) => {
-  return (
-    <div className={`grid ${mobile ? 'grid-cols-2 gap-3' : 'grid-cols-4 gap-4'}`}>
-      <Card className="shadow-sm hover:shadow-md transition-shadow">
-        <CardContent className={`${mobile ? 'pt-4 pb-3' : 'pt-5 pb-4'}`}>
-          <div className="flex items-center justify-between">
-            <div>
-              <p className={`${mobile ? 'text-xl' : 'text-2xl'} font-bold text-green-600`}>{movingVehiclesCount}</p>
-              <p className="text-xs text-slate-500 uppercase">Moving</p>
-            </div>
-            <div className={`${mobile ? 'p-1.5' : 'p-2'} bg-green-100 rounded-full`}>
-              <Navigation className="w-4 h-4 text-green-600" />
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-      
-      <Card className="shadow-sm hover:shadow-md transition-shadow">
-        <CardContent className={`${mobile ? 'pt-4 pb-3' : 'pt-5 pb-4'}`}>
-          <div className="flex items-center justify-between">
-            <div>
-              <p className={`${mobile ? 'text-xl' : 'text-2xl'} font-bold text-yellow-600`}>{parkedVehiclesCount}</p>
-              <p className="text-xs text-slate-500 uppercase">Parked</p>
-            </div>
-            <div className={`${mobile ? 'p-1.5' : 'p-2'} bg-yellow-100 rounded-full`}>
-              <Car className="w-4 h-4 text-yellow-600" />
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-      
-      <Card className="shadow-sm hover:shadow-md transition-shadow">
-        <CardContent className={`${mobile ? 'pt-4 pb-3' : 'pt-5 pb-4'}`}>
-          <div className="flex items-center justify-between">
-            <div>
-              <p className={`${mobile ? 'text-xl' : 'text-2xl'} font-bold text-blue-600`}>{avgSpeed}</p>
-              <p className="text-xs text-slate-500 uppercase">Avg Speed</p>
-            </div>
-            <div className={`${mobile ? 'p-1.5' : 'p-2'} bg-blue-100 rounded-full`}>
-              <Gauge className="w-4 h-4 text-blue-600" />
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-      
-      <Card className="shadow-sm hover:shadow-md transition-shadow">
-        <CardContent className={`${mobile ? 'pt-4 pb-3' : 'pt-5 pb-4'}`}>
-          <div className="flex items-center justify-between">
-            <div>
-              <p className={`${mobile ? 'text-xl' : 'text-2xl'} font-bold text-orange-600`}>{avgFuel}</p>
-              <p className="text-xs text-slate-500 uppercase">Avg Fuel</p>
-            </div>
-            <div className={`${mobile ? 'p-1.5' : 'p-2'} bg-orange-100 rounded-full`}>
-              <Fuel className="w-4 h-4 text-orange-600" />
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-    </div>
-  );
-};

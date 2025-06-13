@@ -6,6 +6,7 @@ import {
   SidebarTrigger,
 } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/AppSidebar";
+// 🔥 FIXED: Import CleanMainContent instead of MainContent
 import { CleanMainContent } from "@/components/MainContent";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -31,46 +32,10 @@ import {
   Shield,
   AlertTriangle,
   AlertCircle,
-  Info,
-  Car,
-  BarChart3,
-  Command,
-  History
+  Info
 } from "lucide-react";
 
-// Mobile Bottom Navigation Component
-const MobileBottomNav = ({ activeView, setActiveView }: { activeView: string; setActiveView: (view: string) => void }) => {
-  const navItems = [
-    { id: 'dashboard', label: 'Dashboard', icon: BarChart3 },
-    { id: 'vehicles', label: 'Vehicles', icon: Car },
-    { id: 'tracking', label: 'Tracking', icon: MapPin },
-    { id: 'alerts', label: 'Alerts', icon: AlertTriangle },
-    { id: 'commands', label: 'Commands', icon: Command },
-  ];
-
-  return (
-    <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 z-50">
-      <div className="grid grid-cols-5 h-16">
-        {navItems.map((item) => (
-          <button
-            key={item.id}
-            onClick={() => setActiveView(item.id)}
-            className={`flex flex-col items-center justify-center gap-1 transition-colors ${
-              activeView === item.id
-                ? 'text-blue-600'
-                : 'text-slate-500 hover:text-slate-700'
-            }`}
-          >
-            <item.icon className="w-5 h-5" />
-            <span className="text-xs font-medium">{item.label}</span>
-          </button>
-        ))}
-      </div>
-    </div>
-  );
-};
-
-// Enhanced User interface
+// Enhanced User interface dengan comprehensive typing
 interface User {
   id?: string;
   user_id?: string;
@@ -87,7 +52,7 @@ interface User {
   subscription_type?: 'free' | 'premium' | 'enterprise';
 }
 
-// Alert/Notification interface
+// Alert/Notification interface - sesuai dengan format API alerts
 interface Alert {
   alert_id: number;
   vehicle_id: number;
@@ -108,24 +73,11 @@ const DashboardPage = () => {
   const [alertsLoading, setAlertsLoading] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
-  // Check if mobile
-  const [isMobile, setIsMobile] = useState(false);
-  
-  useEffect(() => {
-    const checkMobile = () => {
-      setIsMobile(window.innerWidth < 768);
-    };
-    
-    checkMobile();
-    window.addEventListener('resize', checkMobile);
-    
-    return () => window.removeEventListener('resize', checkMobile);
-  }, []);
-
   // Animation and mounting setup
   useEffect(() => {
     setIsMounted(true);
     
+    // Staggered animation timing
     const animationTimer = setTimeout(() => {
       setIsVisible(true);
     }, 150);
@@ -153,16 +105,18 @@ const DashboardPage = () => {
     }
   }, []);
 
-  // Fetch alerts
+  // Fetch alerts dari API lokal
   const fetchAlerts = useCallback(async () => {
     setAlertsLoading(true);
     try {
+      console.log('🚨 Fetching alerts...');
+      
       const response = await fetch('/api/alerts?limit=3', {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
         },
-        signal: AbortSignal.timeout(8000)
+        signal: AbortSignal.timeout(8000) // 8 second timeout
       });
 
       if (!response.ok) {
@@ -172,19 +126,26 @@ const DashboardPage = () => {
       const result = await response.json();
       
       if (result.success && result.data) {
+        console.log(`✅ Loaded ${result.data.length} alerts`);
         setAlerts(result.data);
       } else {
+        console.warn('❌ No alerts data received');
         setAlerts([]);
       }
     } catch (error) {
-      console.error('Failed to fetch alerts:', error);
+      console.error('❌ Failed to fetch alerts:', error);
       setAlerts([]);
+      
+      // Don't show error toast to avoid spam, just log it
+      if (error instanceof Error && !error.message.includes('timeout')) {
+        console.error('Alert fetch error:', error.message);
+      }
     } finally {
       setAlertsLoading(false);
     }
   }, []);
 
-  // Authentication check
+  // Enhanced authentication check dengan comprehensive error handling
   useEffect(() => {
     const checkAuth = async () => {
       try {
@@ -195,7 +156,7 @@ const DashboardPage = () => {
           return false;
         }
 
-        // Validate session
+        // Validate session integrity
         if (userData.login_time) {
           const sessionAge = Date.now() - new Date(userData.login_time).getTime();
           const maxSessionAge = 24 * 60 * 60 * 1000; // 24 hours
@@ -207,20 +168,21 @@ const DashboardPage = () => {
 
         setUser(userData);
 
-        // Handle stored view
+        // Handle stored view navigation
         const storedActiveView = sessionStorage.getItem("activeView");
-        if (storedActiveView && ['dashboard', 'tracking', 'vehicles', 'alerts', 'commands', 'settings'].includes(storedActiveView)) {
+        if (storedActiveView && ['dashboard', 'tracking', 'vehicles', 'reports', 'settings'].includes(storedActiveView)) {
           setActiveView(storedActiveView);
           sessionStorage.removeItem("activeView");
         }
 
-        // Load alerts
+        // Load alerts setelah user terautentikasi
         await fetchAlerts();
 
         return true;
       } catch (error) {
         console.error("Authentication error:", error);
         
+        // Clear corrupted session data
         sessionStorage.removeItem("user");
         sessionStorage.removeItem("activeView");
         
@@ -244,28 +206,31 @@ const DashboardPage = () => {
     }
   }, [router, getUserData, fetchAlerts]);
 
-  // Auto-refresh alerts
+  // Auto-refresh alerts setiap 30 detik
   useEffect(() => {
     if (!user) return;
 
     const interval = setInterval(() => {
       fetchAlerts();
-    }, 30000);
+    }, 30000); // 30 seconds
 
     return () => clearInterval(interval);
   }, [user, fetchAlerts]);
 
-  // Logout handler
+  // Enhanced logout dengan comprehensive cleanup
   const handleLogout = useCallback(async () => {
     try {
+      // Show loading state
       toast.loading("Logging out...", { id: "logout" });
 
+      // Clear all session data
       sessionStorage.removeItem("user");
       sessionStorage.removeItem("activeView");
       if (typeof localStorage !== 'undefined') {
         localStorage.removeItem("user_preferences");
       }
       
+      // Optional: Call logout API to invalidate server-side session
       try {
         await fetch('/api/auth/logout', {
           method: 'POST',
@@ -274,10 +239,13 @@ const DashboardPage = () => {
         });
       } catch (apiError) {
         console.warn("Logout API call failed:", apiError);
+        // Don't block logout if API fails
       }
 
+      // Success feedback
       toast.success("Logged out successfully", { id: "logout" });
       
+      // Navigate after a brief delay for UX
       setTimeout(() => {
         router.push("/");
       }, 500);
@@ -285,14 +253,17 @@ const DashboardPage = () => {
     } catch (error) {
       console.error("Logout error:", error);
       toast.error("Error during logout", { id: "logout" });
+      
+      // Force logout even if error occurs
       router.push("/");
     }
   }, [router, user]);
 
-  // Handle view changes
+  // Handle view changes dengan state persistence
   const handleViewChange = useCallback((newView: string) => {
     setActiveView(newView);
     
+    // Optional: Save view preference
     try {
       if (typeof localStorage !== 'undefined') {
         localStorage.setItem('last_active_view', newView);
@@ -302,7 +273,7 @@ const DashboardPage = () => {
     }
   }, []);
 
-  // Get user initials
+  // Get user initials untuk avatar
   const getUserInitials = useCallback((user: User): string => {
     if (user.full_name) {
       const nameParts = user.full_name.split(' ');
@@ -318,12 +289,12 @@ const DashboardPage = () => {
     return user.email.substring(0, 2).toUpperCase();
   }, []);
 
-  // Get display name
+  // Get display name dengan fallback logic
   const getDisplayName = useCallback((user: User): string => {
     return user.full_name || user.username || user.email.split('@')[0];
   }, []);
 
-  // Format time
+  // Format time for last activity and alerts
   const formatLastActivity = useCallback((timestamp?: string | Date): string => {
     if (!timestamp) return 'Just now';
     
@@ -345,7 +316,7 @@ const DashboardPage = () => {
     }
   }, []);
 
-  // Get alert icon
+  // Get alert icon berdasarkan alert_type
   const getAlertIcon = useCallback((alertType: string | null) => {
     switch (alertType) {
       case 'violation_enter':
@@ -360,7 +331,22 @@ const DashboardPage = () => {
     }
   }, []);
 
-  // Loading state
+  // Get alert priority color
+  const getAlertPriorityColor = useCallback((alertType: string | null) => {
+    switch (alertType) {
+      case 'violation_enter':
+      case 'violation_exit':
+        return 'text-red-600 bg-red-50 border-red-200';
+      case 'warning':
+        return 'text-yellow-600 bg-yellow-50 border-yellow-200';
+      case 'info':
+        return 'text-blue-600 bg-blue-50 border-blue-200';
+      default:
+        return 'text-gray-600 bg-gray-50 border-gray-200';
+    }
+  }, []);
+
+  // Loading state dengan enhanced design
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-slate-100">
@@ -379,9 +365,10 @@ const DashboardPage = () => {
   }
 
   if (!user) {
-    return null;
+    return null; // Already redirected to login
   }
 
+  // Render hanya setelah mounted untuk menghindari hydration mismatch
   if (!isMounted) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-slate-100">
@@ -400,106 +387,48 @@ const DashboardPage = () => {
 
   return (
     <div 
-      className={`flex min-h-screen w-full bg-gray-50 transition-all duration-1000 ${isVisible ? 'opacity-100' : 'opacity-0'}`}
+      className={`flex min-h-screen w-full bg-white transition-all duration-1000 ${isVisible ? 'opacity-100' : 'opacity-0'}`}
       suppressHydrationWarning={true}
     >
       <SidebarProvider>
-        {/* Desktop Sidebar - Hidden on Mobile */}
-        <div className="hidden md:block">
-          <AppSidebar 
-            activeView={activeView} 
-            setActiveView={handleViewChange}
-            className="border-r border-slate-200/50 bg-white/80 backdrop-blur-sm"
-          />
-        </div>
+        {/* Enhanced Sidebar */}
+        <AppSidebar 
+          activeView={activeView} 
+          setActiveView={handleViewChange}
+          className="border-r border-slate-200/50 bg-white/80 backdrop-blur-sm"
+        />
 
         {/* Main Content Area */}
         <SidebarInset className="flex flex-col w-full">
-          {/* Mobile Header - Simplified */}
-          <header className="bg-white shadow-sm border-b border-slate-200 sticky top-0 z-40 md:hidden">
-            <div className="px-4 py-3">
-              <div className="flex justify-between items-center">
-                <div className="flex items-center gap-3">
-                  <MapPin className="w-5 h-5 text-blue-600" />
-                  <h1 className="text-lg font-semibold text-slate-800 capitalize">
-                    {activeView === "tracking" ? "Live Tracking" : activeView === "dashboard" ? "Dashboard" : activeView}
-                  </h1>
-                </div>
-                
-                <div className="flex items-center gap-2">
-                  {/* Notifications Badge */}
-                  <Button 
-                    variant="ghost" 
-                    size="sm" 
-                    className="relative p-2"
-                    onClick={() => handleViewChange('alerts')}
-                  >
-                    {alertsLoading ? (
-                      <Loader2 className="w-5 h-5 animate-spin" />
-                    ) : (
-                      <>
-                        <Bell className="w-5 h-5" />
-                        {alerts.length > 0 && (
-                          <span className="absolute -top-1 -right-1 w-4 h-4 text-xs flex items-center justify-center bg-red-500 text-white rounded-full">
-                            {alerts.length}
-                          </span>
-                        )}
-                      </>
-                    )}
-                  </Button>
-                  
-                  {/* User Menu - Simplified */}
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="sm" className="p-2">
-                        <Avatar className="w-7 h-7">
-                          <AvatarFallback className="bg-gradient-to-br from-blue-500 to-blue-600 text-white text-xs font-medium">
-                            {getUserInitials(user)}
-                          </AvatarFallback>
-                        </Avatar>
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="w-56">
-                      <DropdownMenuLabel>
-                        <div className="space-y-1">
-                          <p className="font-medium text-sm">{getDisplayName(user)}</p>
-                          <p className="text-xs text-slate-500">{user.email}</p>
-                        </div>
-                      </DropdownMenuLabel>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem onClick={() => handleViewChange('settings')}>
-                        <Settings className="w-4 h-4 mr-2" />
-                        Settings
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={handleLogout} className="text-red-600">
-                        <LogOut className="w-4 h-4 mr-2" />
-                        Logout
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </div>
-              </div>
-            </div>
-          </header>
-
-          {/* Desktop Header - Hidden on Mobile */}
-          <header className="hidden md:block bg-white/90 backdrop-blur-sm shadow-sm border-b border-slate-200/50 sticky top-0 z-10">
+          {/* Enhanced Header */}
+          <header className="bg-white/90 backdrop-blur-sm shadow-sm border-b border-slate-200/50 sticky top-0 z-10">
             <div className="px-6 py-4">
               <div className="flex justify-between items-center">
-                <div className="flex items-center gap-3">
-                  <div className="flex items-center gap-2">
-                    <MapPin className="w-6 h-6 text-blue-600" />
-                    <div>
-                      <h1 className="text-xl font-bold bg-gradient-to-r from-blue-600 to-blue-800 bg-clip-text text-transparent capitalize">
-                        {activeView === "tracking" ? "Live Tracking" : activeView === "dashboard" ? "Command Center" : activeView}
-                      </h1>
-                      <div className="flex items-center gap-2 text-sm text-slate-500" suppressHydrationWarning={true}>
-                        <span>Welcome back, {getDisplayName(user)}</span>
+                {/* Left Section */}
+                <div className="flex items-center gap-4">
+                  <SidebarTrigger 
+                    className="lg:hidden p-2 hover:bg-slate-100 rounded-lg transition-colors"
+                    onClick={() => setSidebarOpen(!sidebarOpen)}
+                  >
+                    <Menu className="h-5 w-5" />
+                  </SidebarTrigger>
+                  
+                  <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2">
+                      <MapPin className="w-6 h-6 text-blue-600" />
+                      <div>
+                        <h1 className="text-xl font-bold bg-gradient-to-r from-blue-600 to-blue-800 bg-clip-text text-transparent capitalize">
+                          {activeView === "tracking" ? "Live Tracking" : activeView === "dashboard" ? "Command Center" : activeView}
+                        </h1>
+                        <div className="flex items-center gap-2 text-sm text-slate-500" suppressHydrationWarning={true}>
+                          <span>Welcome back, {getDisplayName(user)}</span>
+                        </div>
                       </div>
                     </div>
                   </div>
                 </div>
 
+                {/* Right Section */}
                 <div className="flex items-center gap-3">
                   {/* Notifications */}
                   <DropdownMenu>
@@ -535,9 +464,14 @@ const DashboardPage = () => {
                                   <p className="text-sm font-medium text-slate-800 leading-tight">
                                     {alert.alert_message || 'No message'}
                                   </p>
-                                  <div className="flex items-center gap-1 text-xs text-slate-500 mt-1">
-                                    <Clock className="w-3 h-3" />
-                                    {alert.timestamp ? formatLastActivity(alert.timestamp) : 'Unknown time'}
+                                  <div className="flex items-center justify-between mt-1">
+                                    <span className={`text-xs px-2 py-1 rounded-full ${getAlertPriorityColor(alert.alert_type)}`}>
+                                      {alert.alert_type?.replace('_', ' ').toUpperCase() || 'UNKNOWN'}
+                                    </span>
+                                    <div className="flex items-center gap-1 text-xs text-slate-500">
+                                      <Clock className="w-3 h-3" />
+                                      {alert.timestamp ? formatLastActivity(alert.timestamp) : 'Unknown time'}
+                                    </div>
                                   </div>
                                   {alert.lokasi && (
                                     <p className="text-xs text-slate-500 mt-1">
@@ -631,8 +565,8 @@ const DashboardPage = () => {
           </header>
 
           {/* Main Content Area */}
-          <div className="flex-1 overflow-auto bg-gray-50">
-            <div className="p-0 md:p-6">
+          <div className="flex-1 overflow-auto bg-white">
+            <div className="p-6">
               <CleanMainContent 
                 activeView={activeView} 
                 user={user}
@@ -643,9 +577,6 @@ const DashboardPage = () => {
           </div>
         </SidebarInset>
       </SidebarProvider>
-
-      {/* Mobile Bottom Navigation */}
-      <MobileBottomNav activeView={activeView} setActiveView={handleViewChange} />
     </div>
   );
 };

@@ -431,7 +431,7 @@ export function Dashboard() {
   });
 
   return (
-    <div className="relative">
+    <>
       {/* Fullscreen Map Overlay */}
       {mapFullscreen && (
         <div className="fixed inset-0 z-[100] bg-black">
@@ -687,7 +687,6 @@ export function Dashboard() {
           </div>
         </CardContent>
       </Card>
-    </div>
     </div>
   );
 }
