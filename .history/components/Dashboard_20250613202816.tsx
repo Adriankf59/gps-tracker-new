@@ -21,9 +21,6 @@ const MapComponent = dynamic(() => import('./MapComponent'), {
   )
 });
 
-// Import type from MapComponent if available, otherwise define compatible type
-import type { ProcessedVehicle as MapVehicle } from './MapComponent';
-
 // Types
 interface Vehicle {
   vehicle_id: string;
@@ -34,11 +31,6 @@ interface Vehicle {
   make: string;
   model: string;
   year: number;
-  sim_card_number: string;
-  relay_status: string | null;
-  created_at: string;
-  updated_at: string;
-  vehicle_photo: string;
 }
 
 interface VehicleData {
@@ -53,8 +45,17 @@ interface VehicleData {
   battery_level: string | null;
 }
 
-// Use MapComponent's type for compatibility
-interface ProcessedVehicle extends MapVehicle {
+interface ProcessedVehicle {
+  id: string;
+  name: string;
+  licensePlate: string;
+  position: [number, number];
+  speed: number;
+  ignition: boolean;
+  fuel: number | null;
+  battery: number | null;
+  timestamp: string | null;
+  status: 'moving' | 'parked' | 'offline';
   isOnline: boolean;
   location: string;
 }
@@ -128,11 +129,6 @@ const getVehicleStatus = (data: VehicleData | undefined): 'moving' | 'parked' | 
 const isVehicleOnline = (data: VehicleData | undefined): boolean => {
   if (!data?.timestamp) return false;
   return (Date.now() - new Date(data.timestamp).getTime()) / 60000 <= 10;
-};
-
-const isMotorVehicle = (vehicle: Vehicle): boolean => {
-  const checkStrings = [vehicle.make, vehicle.model, vehicle.name].map(s => s?.toLowerCase() || '');
-  return checkStrings.some(str => str.includes('motor'));
 };
 
 // Custom hooks
@@ -324,10 +320,6 @@ export function Dashboard() {
         fuel: latestData?.fuel_level ? parseFloat_(latestData.fuel_level) : null,
         battery: latestData?.battery_level ? parseFloat_(latestData.battery_level) : null,
         timestamp: latestData?.timestamp || null,
-        isMotor: isMotorVehicle(vehicle),
-        make: vehicle.make || '',
-        model: vehicle.model || '',
-        year: vehicle.year || 0,
         status,
         isOnline: online,
         location
@@ -356,7 +348,7 @@ export function Dashboard() {
   }, [processedVehicles, alerts.length, geofences.length]);
 
   // Handlers
-  const handleVehicleClick = useCallback((vehicle: MapVehicle) => {
+  const handleVehicleClick = useCallback((vehicle: ProcessedVehicle) => {
     setSelectedVehicleId(prev => prev === vehicle.id ? null : vehicle.id);
   }, []);
 

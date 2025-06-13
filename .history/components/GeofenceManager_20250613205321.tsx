@@ -23,16 +23,15 @@ const GEOFENCE_API = `${API_BASE_URL}/items/geofence`;
 const VEHICLE_API = `${API_BASE_URL}/items/vehicle`;
 const DEFAULT_CENTER: [number, number] = [-2.5, 118.0];
 
-// FIX: 'type' dibutuhkan di level atas DAN di dalam 'definition'
+// FIX: geofence_id diubah menjadi number agar sesuai dengan prop komponen peta
 export type Geofence = {
   geofence_id: number;
   name: string;
   status: 'active' | 'inactive';
   rule_type: 'FORBIDDEN' | 'STAY_IN' | 'STANDARD';
-  type: 'circle' | 'polygon'; // Kembalikan properti ini
+  type: 'polygon' | 'circle';
   date_created: string;
   definition: {
-    type: 'Circle' | 'Polygon';
     center?: [number, number];
     radius?: number;
     coordinates?: [number, number][][];
@@ -41,7 +40,7 @@ export type Geofence = {
 };
 
 export type Vehicle = {
-  vehicle_id: string | number;
+  vehicle_id: string | number; // Tipe ini mungkin perlu disesuaikan juga jika ada error serupa
   name: string;
   license_plate: string;
   make: string;
@@ -60,18 +59,16 @@ type NewGeofenceState = {
 // Utility functions
 const ensureArray = (value: any): any[] => Array.isArray(value) ? value : (value?.data || []);
 
-// FIX: Kembalikan pembacaan 'type' dari level atas
-const validateGeofence = (gf: Geofence): boolean => {
+const validateGeofence = (gf: any): boolean => {
   if (!gf?.definition) return false;
   const { center, radius, coordinates } = gf.definition;
   return gf.type === 'circle'
-    ? center?.length === 2 && radius != null && radius > 0
-    : coordinates?.[0]?.length != null && coordinates[0].length >= 4;
+    ? center?.length === 2 && radius > 0
+    : coordinates?.[0]?.length >= 4;
 };
 
-// FIX: Kembalikan pembacaan 'type' dari level atas
-const getGeofenceCenter = (geofence: Geofence | null): [number, number] => {
-  if (!geofence || !validateGeofence(geofence)) return DEFAULT_CENTER;
+const getGeofenceCenter = (geofence: any): [number, number] => {
+  if (!validateGeofence(geofence)) return DEFAULT_CENTER;
   
   if (geofence.type === 'circle' && geofence.definition.center) {
     const [lng, lat] = geofence.definition.center;
@@ -145,6 +142,7 @@ export function GeofenceManager() {
 
       const parsed: Geofence[] = ensureArray(result).map((gf: any) => ({
         ...gf,
+        // Memastikan ID adalah number untuk konsistensi tipe
         geofence_id: Number(gf.geofence_id), 
         definition: typeof gf.definition === 'string' ? JSON.parse(gf.definition) : gf.definition
       }));
@@ -226,7 +224,7 @@ export function GeofenceManager() {
       const payload = {
         user_id: userId,
         name: newGeofence.name.trim(),
-        type: newGeofence.type, 
+        type: newGeofence.type,
         rule_type: newGeofence.ruleType,
         status: "active",
         definition,
@@ -246,11 +244,13 @@ export function GeofenceManager() {
     }
   }, [currentUser, newGeofence, drawnLayers, fetchData, refreshData]);
 
+  // FIX: Mengubah tipe parameter menjadi number
   const handleDeleteGeofence = useCallback(async (geofenceId: number) => {
     if (!confirm("Are you sure you want to delete this geofence?")) return;
 
     setLoading(true);
     try {
+      // Remove from vehicles first
       const assignedVehicles = vehicles.filter(v => v.geofence_id?.toString() === geofenceId.toString());
       await Promise.all(assignedVehicles.map(v =>
         fetchData(`${VEHICLE_API}/${v.vehicle_id}`, {
@@ -325,6 +325,7 @@ export function GeofenceManager() {
     return currentGeofence ? [currentGeofence] : geofences;
   }, [isCreating, currentGeofence, geofences]);
 
+  // FIX: Mengubah tipe parameter menjadi number
   const getAssignedCount = useCallback((geofenceId: number) => {
     return vehicles.filter(v => v.geofence_id?.toString() === geofenceId.toString()).length;
   }, [vehicles]);
@@ -533,7 +534,6 @@ export function GeofenceManager() {
                       <Badge className={getRuleTypeColor(geofence.rule_type)}>
                         {geofence.rule_type}
                       </Badge>
-                      {/* FIX: Kembalikan pembacaan 'type' dari level atas */}
                       <Badge variant="outline">
                         {geofence.type === 'circle' ? '⭕ Circle' : '⬜ Polygon'}
                       </Badge>

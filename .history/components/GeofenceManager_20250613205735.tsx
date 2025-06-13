@@ -23,13 +23,12 @@ const GEOFENCE_API = `${API_BASE_URL}/items/geofence`;
 const VEHICLE_API = `${API_BASE_URL}/items/vehicle`;
 const DEFAULT_CENTER: [number, number] = [-2.5, 118.0];
 
-// FIX: 'type' dibutuhkan di level atas DAN di dalam 'definition'
+// FIX: Pindahkan 'type' ke dalam 'definition'
 export type Geofence = {
   geofence_id: number;
   name: string;
   status: 'active' | 'inactive';
   rule_type: 'FORBIDDEN' | 'STAY_IN' | 'STANDARD';
-  type: 'circle' | 'polygon'; // Kembalikan properti ini
   date_created: string;
   definition: {
     type: 'Circle' | 'Polygon';
@@ -60,25 +59,25 @@ type NewGeofenceState = {
 // Utility functions
 const ensureArray = (value: any): any[] => Array.isArray(value) ? value : (value?.data || []);
 
-// FIX: Kembalikan pembacaan 'type' dari level atas
+// FIX: Baca 'type' dari dalam 'definition'
 const validateGeofence = (gf: Geofence): boolean => {
   if (!gf?.definition) return false;
-  const { center, radius, coordinates } = gf.definition;
-  return gf.type === 'circle'
+  const { type, center, radius, coordinates } = gf.definition;
+  return type.toLowerCase() === 'circle'
     ? center?.length === 2 && radius != null && radius > 0
     : coordinates?.[0]?.length != null && coordinates[0].length >= 4;
 };
 
-// FIX: Kembalikan pembacaan 'type' dari level atas
+// FIX: Baca 'type' dari dalam 'definition'
 const getGeofenceCenter = (geofence: Geofence | null): [number, number] => {
   if (!geofence || !validateGeofence(geofence)) return DEFAULT_CENTER;
   
-  if (geofence.type === 'circle' && geofence.definition.center) {
+  if (geofence.definition.type.toLowerCase() === 'circle' && geofence.definition.center) {
     const [lng, lat] = geofence.definition.center;
     return [lat, lng];
   }
 
-  if (geofence.type === 'polygon' && geofence.definition.coordinates) {
+  if (geofence.definition.type.toLowerCase() === 'polygon' && geofence.definition.coordinates) {
     const coords = geofence.definition.coordinates[0];
     if (coords && coords.length > 0) {
       const lat = coords.reduce((sum: number, c: number[]) => sum + c[1], 0) / coords.length;
@@ -226,6 +225,8 @@ export function GeofenceManager() {
       const payload = {
         user_id: userId,
         name: newGeofence.name.trim(),
+        // 'type' di level atas ini mungkin masih diperlukan oleh API, jadi biarkan saja.
+        // Yang penting adalah struktur 'definition' sudah benar.
         type: newGeofence.type, 
         rule_type: newGeofence.ruleType,
         status: "active",
@@ -533,9 +534,9 @@ export function GeofenceManager() {
                       <Badge className={getRuleTypeColor(geofence.rule_type)}>
                         {geofence.rule_type}
                       </Badge>
-                      {/* FIX: Kembalikan pembacaan 'type' dari level atas */}
+                      {/* FIX: Baca 'type' dari dalam 'definition' */}
                       <Badge variant="outline">
-                        {geofence.type === 'circle' ? '⭕ Circle' : '⬜ Polygon'}
+                        {geofence.definition.type.toLowerCase() === 'circle' ? '⭕ Circle' : '⬜ Polygon'}
                       </Badge>
                       {getAssignedCount(geofence.geofence_id) > 0 && (
                         <Badge className="bg-cyan-100 text-cyan-800">

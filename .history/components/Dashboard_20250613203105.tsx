@@ -21,9 +21,6 @@ const MapComponent = dynamic(() => import('./MapComponent'), {
   )
 });
 
-// Import type from MapComponent if available, otherwise define compatible type
-import type { ProcessedVehicle as MapVehicle } from './MapComponent';
-
 // Types
 interface Vehicle {
   vehicle_id: string;
@@ -53,8 +50,21 @@ interface VehicleData {
   battery_level: string | null;
 }
 
-// Use MapComponent's type for compatibility
-interface ProcessedVehicle extends MapVehicle {
+interface ProcessedVehicle {
+  id: string;
+  name: string;
+  licensePlate: string;
+  position: [number, number];
+  speed: number;
+  ignition: boolean;
+  fuel: number | null;
+  battery: number | null;
+  timestamp: string | null;
+  isMotor: boolean;  // Added missing property
+  make: string;      // Added missing property
+  model: string;     // Added missing property
+  year: number;      // Added missing property
+  status: 'moving' | 'parked' | 'offline';
   isOnline: boolean;
   location: string;
 }
@@ -356,7 +366,7 @@ export function Dashboard() {
   }, [processedVehicles, alerts.length, geofences.length]);
 
   // Handlers
-  const handleVehicleClick = useCallback((vehicle: MapVehicle) => {
+  const handleVehicleClick = useCallback((vehicle: ProcessedVehicle) => {
     setSelectedVehicleId(prev => prev === vehicle.id ? null : vehicle.id);
   }, []);
 

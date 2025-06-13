@@ -23,34 +23,7 @@ const GEOFENCE_API = `${API_BASE_URL}/items/geofence`;
 const VEHICLE_API = `${API_BASE_URL}/items/vehicle`;
 const DEFAULT_CENTER: [number, number] = [-2.5, 118.0];
 
-// FIX: 'type' dibutuhkan di level atas DAN di dalam 'definition'
-export type Geofence = {
-  geofence_id: number;
-  name: string;
-  status: 'active' | 'inactive';
-  rule_type: 'FORBIDDEN' | 'STAY_IN' | 'STANDARD';
-  type: 'circle' | 'polygon'; // Kembalikan properti ini
-  date_created: string;
-  definition: {
-    type: 'Circle' | 'Polygon';
-    center?: [number, number];
-    radius?: number;
-    coordinates?: [number, number][][];
-  };
-  user_id: string;
-};
-
-export type Vehicle = {
-  vehicle_id: string | number;
-  name: string;
-  license_plate: string;
-  make: string;
-  model: string;
-  geofence_id?: string | number | null;
-  user_id: string;
-};
-
-
+// FIX: Define a specific type for the new geofence state
 type NewGeofenceState = {
   name: string;
   ruleType: "FORBIDDEN" | "STAY_IN" | "STANDARD";
@@ -60,34 +33,26 @@ type NewGeofenceState = {
 // Utility functions
 const ensureArray = (value: any): any[] => Array.isArray(value) ? value : (value?.data || []);
 
-// FIX: Kembalikan pembacaan 'type' dari level atas
-const validateGeofence = (gf: Geofence): boolean => {
+const validateGeofence = (gf: any): boolean => {
   if (!gf?.definition) return false;
   const { center, radius, coordinates } = gf.definition;
   return gf.type === 'circle'
-    ? center?.length === 2 && radius != null && radius > 0
-    : coordinates?.[0]?.length != null && coordinates[0].length >= 4;
+    ? center?.length === 2 && radius > 0
+    : coordinates?.[0]?.length >= 4;
 };
 
-// FIX: Kembalikan pembacaan 'type' dari level atas
-const getGeofenceCenter = (geofence: Geofence | null): [number, number] => {
-  if (!geofence || !validateGeofence(geofence)) return DEFAULT_CENTER;
+const getGeofenceCenter = (geofence: any): [number, number] => {
+  if (!validateGeofence(geofence)) return DEFAULT_CENTER;
   
-  if (geofence.type === 'circle' && geofence.definition.center) {
+  if (geofence.type === 'circle') {
     const [lng, lat] = geofence.definition.center;
     return [lat, lng];
   }
 
-  if (geofence.type === 'polygon' && geofence.definition.coordinates) {
-    const coords = geofence.definition.coordinates[0];
-    if (coords && coords.length > 0) {
-      const lat = coords.reduce((sum: number, c: number[]) => sum + c[1], 0) / coords.length;
-      const lng = coords.reduce((sum: number, c: number[]) => sum + c[0], 0) / coords.length;
-      return [lat, lng];
-    }
-  }
-
-  return DEFAULT_CENTER;
+  const coords = geofence.definition.coordinates[0];
+  const lat = coords.reduce((sum: number, c: number[]) => sum + c[1], 0) / coords.length;
+  const lng = coords.reduce((sum: number, c: number[]) => sum + c[0], 0) / coords.length;
+  return [lat, lng];
 };
 
 
@@ -104,14 +69,15 @@ const getRuleTypeColor = (type: string): string => ({
 
 export function GeofenceManager() {
   // State
-  const [currentGeofence, setCurrentGeofence] = useState<Geofence | null>(null);
-  const [geofences, setGeofences] = useState<Geofence[]>([]);
-  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
+  const [currentGeofence, setCurrentGeofence] = useState<any>(null);
+  const [geofences, setGeofences] = useState<any[]>([]);
+  const [vehicles, setVehicles] = useState<any[]>([]);
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [isCreating, setIsCreating] = useState(false);
   const [loading, setLoading] = useState(true);
   const [assignDialogOpen, setAssignDialogOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
+  // FIX: Apply the specific type to the useState hook
   const [newGeofence, setNewGeofence] = useState<NewGeofenceState>({ name: "", ruleType: "FORBIDDEN", type: "polygon" });
   const [drawnLayers, setDrawnLayers] = useState<any[]>([]);
   const [selectedVehicles, setSelectedVehicles] = useState<string[]>([]);
@@ -143,9 +109,8 @@ export function GeofenceManager() {
       const result = await fetchData(`${GEOFENCE_API}?filter[user_id][_eq]=${userId}&limit=-1&sort=-date_created`);
       if (!result) return [];
 
-      const parsed: Geofence[] = ensureArray(result).map((gf: any) => ({
+      const parsed = ensureArray(result).map((gf: any) => ({
         ...gf,
-        geofence_id: Number(gf.geofence_id), 
         definition: typeof gf.definition === 'string' ? JSON.parse(gf.definition) : gf.definition
       }));
 
@@ -163,7 +128,7 @@ export function GeofenceManager() {
       const result = await fetchData(`${VEHICLE_API}?filter[user_id][_eq]=${userId}&limit=-1`);
       if (!result) return [];
 
-      const fetched: Vehicle[] = ensureArray(result);
+      const fetched = ensureArray(result);
       setVehicles(fetched);
       return fetched;
     } catch (error) {
@@ -226,7 +191,7 @@ export function GeofenceManager() {
       const payload = {
         user_id: userId,
         name: newGeofence.name.trim(),
-        type: newGeofence.type, 
+        type: newGeofence.type,
         rule_type: newGeofence.ruleType,
         status: "active",
         definition,
@@ -246,11 +211,12 @@ export function GeofenceManager() {
     }
   }, [currentUser, newGeofence, drawnLayers, fetchData, refreshData]);
 
-  const handleDeleteGeofence = useCallback(async (geofenceId: number) => {
+  const handleDeleteGeofence = useCallback(async (geofenceId: string | number) => {
     if (!confirm("Are you sure you want to delete this geofence?")) return;
 
     setLoading(true);
     try {
+      // Remove from vehicles first
       const assignedVehicles = vehicles.filter(v => v.geofence_id?.toString() === geofenceId.toString());
       await Promise.all(assignedVehicles.map(v =>
         fetchData(`${VEHICLE_API}/${v.vehicle_id}`, {
@@ -271,7 +237,7 @@ export function GeofenceManager() {
     }
   }, [vehicles, fetchData, refreshData, currentUser]);
 
-  const handleAssignVehicles = (geofence: Geofence) => {
+  const handleAssignVehicles = (geofence: any) => {
     setCurrentGeofence(geofence);
     const assignedIds = vehicles
       .filter(v => v.geofence_id?.toString() === geofence.geofence_id.toString())
@@ -325,7 +291,7 @@ export function GeofenceManager() {
     return currentGeofence ? [currentGeofence] : geofences;
   }, [isCreating, currentGeofence, geofences]);
 
-  const getAssignedCount = useCallback((geofenceId: number) => {
+  const getAssignedCount = useCallback((geofenceId: string | number) => {
     return vehicles.filter(v => v.geofence_id?.toString() === geofenceId.toString()).length;
   }, [vehicles]);
 
@@ -533,7 +499,6 @@ export function GeofenceManager() {
                       <Badge className={getRuleTypeColor(geofence.rule_type)}>
                         {geofence.rule_type}
                       </Badge>
-                      {/* FIX: Kembalikan pembacaan 'type' dari level atas */}
                       <Badge variant="outline">
                         {geofence.type === 'circle' ? '⭕ Circle' : '⬜ Polygon'}
                       </Badge>
