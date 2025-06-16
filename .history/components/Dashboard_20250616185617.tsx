@@ -141,7 +141,7 @@ const useUser = () => {
   }, []);
 };
 
-// WebSocket Hook - Hybrid Mode (Initial API + WebSocket Updates)
+// WebSocket Hook with API fallback
 const useWebSocket = (userId?: string) => {
   const [isConnected, setIsConnected] = useState(false);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
@@ -149,35 +149,30 @@ const useWebSocket = (userId?: string) => {
   const [geofences, setGeofences] = useState<any[]>([]);
   const [alerts, setAlerts] = useState<any[]>([]);
   const [lastUpdate, setLastUpdate] = useState(new Date());
-  const [connectionError, setConnectionError] = useState<string | null>(null);
   const [isInitialLoading, setIsInitialLoading] = useState(true);
   
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout>();
   const pingIntervalRef = useRef<NodeJS.Timeout>();
-  const reconnectAttemptsRef = useRef(0);
   const isOnline = useOnlineStatus();
 
-  // Load initial data ONCE from API
+  // Load initial data from API
   const loadInitialData = useCallback(async () => {
     if (!userId) return;
     
-    console.log('📥 Loading initial data from API...');
     try {
       // Fetch vehicles
       const vehiclesResponse = await fetch(`/api/vehicles?user_id=${userId}`);
       if (vehiclesResponse.ok) {
         const vehiclesData = await vehiclesResponse.json();
         setVehicles(vehiclesData.data || []);
-        console.log(`📊 Loaded ${vehiclesData.data?.length || 0} vehicles`);
       }
       
-      // Fetch vehicle data with limit
-      const vehicleDataResponse = await fetch(`/api/vehicle-data?user_id=${userId}&limit=100`);
+      // Fetch vehicle data
+      const vehicleDataResponse = await fetch(`/api/vehicle-data?user_id=${userId}`);
       if (vehicleDataResponse.ok) {
         const vData = await vehicleDataResponse.json();
         setVehicleData(vData.data || []);
-        console.log(`📊 Loaded ${vData.data?.length || 0} vehicle data records`);
       }
       
       setIsInitialLoading(false);
@@ -188,43 +183,22 @@ const useWebSocket = (userId?: string) => {
   }, [userId]);
 
   const connect = useCallback(() => {
-    if (!userId || !isOnline) {
-      setConnectionError('No user ID or offline');
-      return;
-    }
-    
-    // Don't connect if already connecting or connected
-    if (wsRef.current?.readyState === WebSocket.CONNECTING || 
-        wsRef.current?.readyState === WebSocket.OPEN) {
-      return;
-    }
-
-    setConnectionError(null);
-    console.log('🔌 Attempting WebSocket connection...');
+    if (!userId || !isOnline || wsRef.current?.readyState === WebSocket.OPEN) return;
 
     try {
       const ws = new WebSocket(`${WS_URL}?userId=${userId}`);
       wsRef.current = ws;
 
       ws.onopen = () => {
-        console.log('✅ WebSocket connected');
         setIsConnected(true);
-        setConnectionError(null);
-        reconnectAttemptsRef.current = 0;
         toast.success('Connected to real-time updates');
         
-        // Subscribe to collections for real-time updates
+        // Send subscribe message with Directus format
         ws.send(JSON.stringify({ 
           type: 'subscribe',
-          collection: 'vehicle'
+          collection: 'vehicle_datas',
+          uid: userId 
         }));
-        
-        ws.send(JSON.stringify({ 
-          type: 'subscribe',
-          collection: 'vehicle_datas'
-        }));
-        
-        console.log('📤 Subscribed to collections');
         
         // Setup ping interval
         pingIntervalRef.current = setInterval(() => {
@@ -236,46 +210,30 @@ const useWebSocket = (userId?: string) => {
 
       ws.onmessage = (event) => {
         try {
-          const message = JSON.parse(event.data);
-          console.log('📨 WebSocket message:', message.type, message);
+          const message: WebSocketMessage = JSON.parse(event.data);
           
-          // Handle Directus WebSocket format
-          if (message.type === 'subscription') {
-            const { event, data } = message;
-            
-            if (event === 'init') {
-              // Initial data from subscription
-              console.log(`📊 Initial data received: ${data?.length || 0} records`);
+          switch (message.type) {
+            case 'vehicles':
+              setVehicles(message.data || []);
+              break;
               
-              // Determine collection type based on data structure
-              if (data && data.length > 0) {
-                const firstItem = data[0];
-                
-                if (firstItem.vehicle_id && firstItem.license_plate) {
-                  // This is vehicle data
-                  setVehicles(data);
-                  console.log(`📊 Set ${data.length} vehicles`);
-                } else if (firstItem.gps_id && firstItem.latitude) {
-                  // This is vehicle_datas
-                  setVehicleData(data);
-                  setLastUpdate(new Date());
-                  console.log(`📊 Set ${data.length} vehicle data records`);
-                }
-              }
-            } else if (event === 'create' || event === 'update' || event === 'delete') {
-              // Real-time updates
-              handleDirectusUpdate({ event, data: data[0], collection: getCollectionFromData(data[0]) });
-            }
-          } else {
-            switch (message.type) {
-              case 'ping':
-              case 'pong':
-                // Heartbeat - ignore
-                break;
-                
-              default:
-                console.log('Unknown message type:', message.type);
-            }
+            case 'vehicle_data':
+              setVehicleData(message.data || []);
+              setLastUpdate(new Date());
+              break;
+              
+            case 'geofences':
+              setGeofences(message.data || []);
+              break;
+              
+            case 'alerts':
+              setAlerts(message.data || []);
+              break;
+              
+            case 'error':
+              console.error('WebSocket error:', message.error);
+              toast.error(message.error || 'WebSocket error occurred');
+              break;
           }
         } catch (error) {
           console.error('Failed to parse WebSocket message:', error);
@@ -283,13 +241,11 @@ const useWebSocket = (userId?: string) => {
       };
 
       ws.onerror = (error) => {
-        console.error('❌ WebSocket error:', error);
+        console.error('WebSocket error:', error);
         setIsConnected(false);
-        setConnectionError('WebSocket connection error');
       };
 
-      ws.onclose = (event) => {
-        console.log(`🔌 WebSocket closed: ${event.code} - ${event.reason}`);
+      ws.onclose = () => {
         setIsConnected(false);
         wsRef.current = null;
         
@@ -298,85 +254,22 @@ const useWebSocket = (userId?: string) => {
           clearInterval(pingIntervalRef.current);
         }
         
-        // Reconnect with exponential backoff
-        if (isOnline && event.code !== 1000) {
-          reconnectAttemptsRef.current++;
-          const delay = Math.min(RECONNECT_INTERVAL * reconnectAttemptsRef.current, 30000);
-          
-          toast.warning(`Connection lost. Reconnecting in ${delay/1000}s...`);
-          setConnectionError(`Reconnecting in ${delay/1000}s...`);
-          
-          reconnectTimeoutRef.current = setTimeout(connect, delay);
+        // Attempt to reconnect
+        if (isOnline) {
+          toast.warning('Connection lost. Reconnecting...');
+          reconnectTimeoutRef.current = setTimeout(connect, RECONNECT_INTERVAL);
         }
       };
 
     } catch (error) {
       console.error('Failed to connect to WebSocket:', error);
       setIsConnected(false);
-      setConnectionError('Failed to establish connection');
     }
   }, [userId, isOnline]);
 
-  // Helper function to determine collection from data
-  const getCollectionFromData = (data: any) => {
-    if (!data) return null;
-    
-    if (data.vehicle_id && data.license_plate) {
-      return 'vehicle';
-    } else if (data.gps_id && data.latitude) {
-      return 'vehicle_datas';
-    }
-    
-    return null;
-  };
-
-  // Handle Directus real-time updates
-  const handleDirectusUpdate = useCallback((message: any) => {
-    const { collection, event, data, key } = message;
-    
-    console.log(`🔄 Directus ${event} on ${collection}:`, data);
-    
-    if (collection === 'vehicle') {
-      if (event === 'create' || event === 'update') {
-        // Update or add vehicle
-        setVehicles(prev => {
-          const index = prev.findIndex(v => v.vehicle_id === data.vehicle_id);
-          if (index >= 0) {
-            const updated = [...prev];
-            updated[index] = { ...updated[index], ...data };
-            return updated;
-          } else if (data.user_id === userId) {
-            return [...prev, data];
-          }
-          return prev;
-        });
-      } else if (event === 'delete') {
-        setVehicles(prev => prev.filter(v => v.vehicle_id !== data.vehicle_id));
-      }
-    } else if (collection === 'vehicle_datas') {
-      if (event === 'create') {
-        // Add new vehicle data
-        setVehicleData(prev => [data, ...prev].slice(0, 100)); // Keep last 100
-        setLastUpdate(new Date());
-        console.log('🆕 New vehicle data added');
-      } else if (event === 'update') {
-        // Update existing record
-        setVehicleData(prev => {
-          const index = prev.findIndex(v => v.gps_id === data.gps_id);
-          if (index >= 0) {
-            const updated = [...prev];
-            updated[index] = { ...updated[index], ...data };
-            return updated;
-          }
-          return prev;
-        });
-      }
-    }
-  }, [userId]);
-
   const disconnect = useCallback(() => {
     if (wsRef.current) {
-      wsRef.current.close(1000, 'User disconnect');
+      wsRef.current.close();
       wsRef.current = null;
     }
     
@@ -394,30 +287,45 @@ const useWebSocket = (userId?: string) => {
   const sendMessage = useCallback((message: any) => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {
       wsRef.current.send(JSON.stringify(message));
-    } else {
-      toast.error('WebSocket not connected');
     }
   }, []);
 
-  // Manual refresh - reload from API
-  const refresh = useCallback(async () => {
+  // Refresh data from API
+  const refreshFromAPI = useCallback(async () => {
     if (!userId) return;
     
-    toast.info('Refreshing data...');
-    await loadInitialData();
-  }, [userId, loadInitialData]);
+    setVehicleDataLoading(true);
+    
+    try {
+      // Fetch vehicles
+      const vehiclesResponse = await fetch(`/api/vehicles?user_id=${userId}`);
+      if (vehiclesResponse.ok) {
+        const vehiclesData = await vehiclesResponse.json();
+        setVehicles(vehiclesData.data || []);
+      }
+      
+      // Fetch vehicle data
+      const vehicleDataResponse = await fetch(`/api/vehicle-data?user_id=${userId}`);
+      if (vehicleDataResponse.ok) {
+        const vData = await vehicleDataResponse.json();
+        setVehicleData(vData.data || []);
+        setLastUpdate(new Date());
+      }
+      
+      toast.success('Data refreshed');
+    } catch (error) {
+      console.error('Failed to refresh data:', error);
+      toast.error('Failed to refresh data');
+    } finally {
+      setVehicleDataLoading(false);
+    }
+  }, [userId]);
 
   useEffect(() => {
-    // Load initial data first
     loadInitialData();
-    
-    // Then connect WebSocket for updates
-    const connectTimeout = setTimeout(() => {
-      connect();
-    }, 500);
+    connect();
     
     return () => {
-      clearTimeout(connectTimeout);
       disconnect();
     };
   }, [loadInitialData, connect, disconnect]);
@@ -430,8 +338,7 @@ const useWebSocket = (userId?: string) => {
     alerts,
     lastUpdate,
     sendMessage,
-    refresh,
-    connectionError,
+    refreshFromAPI,
     isInitialLoading
   };
 };
@@ -455,15 +362,16 @@ export function Dashboard() {
     alerts, 
     lastUpdate,
     sendMessage,
-    refresh,
-    connectionError,
+    refreshFromAPI,
     isInitialLoading
   } = useWebSocket(userId);
 
-  // Set loading state based on connection
+  // Set loading state based on data availability
   useEffect(() => {
-    setVehiclesLoading(!isConnected);
-  }, [isConnected]);
+    if (!isInitialLoading || vehicles.length > 0) {
+      setVehiclesLoading(false);
+    }
+  }, [vehicles, isInitialLoading]);
 
   // Process vehicles
   const processedVehicles = useMemo((): ProcessedVehicle[] => {
@@ -543,28 +451,28 @@ export function Dashboard() {
     setSelectedVehicleId(prev => prev === vehicle.id ? null : vehicle.id);
   }, []);
 
-  const handleRefresh = useCallback(() => {
+  const handleRefresh = useCallback(async () => {
     if (!isOnline) {
       toast.error('Cannot refresh while offline');
       return;
     }
     
-    if (!isConnected) {
-      toast.error('Not connected to real-time updates');
-      return;
+    // Try WebSocket refresh first
+    if (isConnected) {
+      sendMessage({ type: 'refresh', userId });
     }
     
-    // Request fresh data via WebSocket
-    refresh();
-  }, [isConnected, isOnline, refresh]);
+    // Also refresh from API as fallback
+    await refreshFromAPI();
+  }, [isConnected, isOnline, sendMessage, userId, refreshFromAPI]);
 
-  // Loading state - Show loading during initial data fetch
-  if (isInitialLoading) {
+  // Loading state
+  if (isInitialLoading && processedVehicles.length === 0) {
     return (
       <div className="flex items-center justify-center min-h-[50vh]">
         <div className="text-center">
           <Loader2 className="w-10 h-10 animate-spin mx-auto mb-4 text-blue-600" />
-          <p className="text-slate-600">Loading dashboard data...</p>
+          <p className="text-slate-600">Loading dashboard...</p>
         </div>
       </div>
     );
@@ -689,9 +597,9 @@ export function Dashboard() {
             
             {isOnline && (
               <div className="flex items-center gap-2">
-                <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`} />
+                <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500 animate-pulse' : 'bg-yellow-500'}`} />
                 <span className="text-xs text-gray-600">
-                  {isConnected ? 'WebSocket Connected' : 'WebSocket Disconnected'}
+                  {isConnected ? 'Real-time' : 'API Mode'}
                 </span>
               </div>
             )}
@@ -703,7 +611,7 @@ export function Dashboard() {
           
           <button
             onClick={handleRefresh}
-            disabled={!isConnected || vehicleDataLoading}
+            disabled={vehicleDataLoading || !isOnline}
             className="flex items-center justify-center gap-2 px-3 py-1.5 text-xs sm:text-sm bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 transition-colors"
           >
             <RefreshCw className={`w-3 h-3 sm:w-4 sm:h-4 ${vehicleDataLoading ? 'animate-spin' : ''}`} />
@@ -755,14 +663,27 @@ export function Dashboard() {
             )}
           </button>
 
-          {/* Connection Status Overlay */}
-          {!isConnected && (
+          {/* Status overlays */}
+          {vehicleDataLoading && (
+            <div className="absolute top-2 left-2 sm:top-4 sm:left-4 z-50">
+              <Card className="bg-blue-50/95 backdrop-blur border-blue-200">
+                <CardContent className="p-2 sm:p-3">
+                  <div className="flex items-center gap-2">
+                    <Loader2 className="w-3 h-3 sm:w-4 sm:h-4 animate-spin text-blue-600" />
+                    <span className="text-xs sm:text-sm text-blue-700">Updating...</span>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          )}
+
+          {!isOnline && (
             <div className="absolute top-2 left-2 sm:top-4 sm:left-4 z-50">
               <Card className="bg-red-50/95 backdrop-blur border-red-200">
                 <CardContent className="p-2 sm:p-3">
                   <div className="flex items-center gap-2">
                     <WifiOff className="w-3 h-3 sm:w-4 sm:h-4 text-red-600" />
-                    <span className="text-xs sm:text-sm text-red-700">No Real-time Data</span>
+                    <span className="text-xs sm:text-sm text-red-700">Offline</span>
                   </div>
                 </CardContent>
               </Card>

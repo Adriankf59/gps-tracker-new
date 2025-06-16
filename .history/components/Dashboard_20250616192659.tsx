@@ -239,43 +239,26 @@ const useWebSocket = (userId?: string) => {
           const message = JSON.parse(event.data);
           console.log('📨 WebSocket message:', message.type, message);
           
-          // Handle Directus WebSocket format
-          if (message.type === 'subscription') {
-            const { event, data } = message;
-            
-            if (event === 'init') {
-              // Initial data from subscription
-              console.log(`📊 Initial data received: ${data?.length || 0} records`);
+          switch (message.type) {
+            case 'subscription':
+              // Directus subscription confirmation
+              console.log('📝 Subscription confirmed for:', message.collection);
+              break;
               
-              // Determine collection type based on data structure
-              if (data && data.length > 0) {
-                const firstItem = data[0];
-                
-                if (firstItem.vehicle_id && firstItem.license_plate) {
-                  // This is vehicle data
-                  setVehicles(data);
-                  console.log(`📊 Set ${data.length} vehicles`);
-                } else if (firstItem.gps_id && firstItem.latitude) {
-                  // This is vehicle_datas
-                  setVehicleData(data);
-                  setLastUpdate(new Date());
-                  console.log(`📊 Set ${data.length} vehicle data records`);
-                }
-              }
-            } else if (event === 'create' || event === 'update' || event === 'delete') {
-              // Real-time updates
-              handleDirectusUpdate({ event, data: data[0], collection: getCollectionFromData(data[0]) });
-            }
-          } else {
-            switch (message.type) {
-              case 'ping':
-              case 'pong':
-                // Heartbeat - ignore
-                break;
-                
-              default:
-                console.log('Unknown message type:', message.type);
-            }
+            case 'ping':
+            case 'pong':
+              // Heartbeat - ignore
+              break;
+              
+            // Directus sends updates in this format
+            case 'create':
+            case 'update':
+            case 'delete':
+              handleDirectusUpdate(message);
+              break;
+              
+            default:
+              console.log('Unknown message type:', message.type);
           }
         } catch (error) {
           console.error('Failed to parse WebSocket message:', error);
@@ -317,30 +300,17 @@ const useWebSocket = (userId?: string) => {
     }
   }, [userId, isOnline]);
 
-  // Helper function to determine collection from data
-  const getCollectionFromData = (data: any) => {
-    if (!data) return null;
-    
-    if (data.vehicle_id && data.license_plate) {
-      return 'vehicle';
-    } else if (data.gps_id && data.latitude) {
-      return 'vehicle_datas';
-    }
-    
-    return null;
-  };
-
   // Handle Directus real-time updates
   const handleDirectusUpdate = useCallback((message: any) => {
     const { collection, event, data, key } = message;
     
-    console.log(`🔄 Directus ${event} on ${collection}:`, data);
+    console.log(`🔄 Directus ${event} on ${collection}:`, key);
     
     if (collection === 'vehicle') {
       if (event === 'create' || event === 'update') {
         // Update or add vehicle
         setVehicles(prev => {
-          const index = prev.findIndex(v => v.vehicle_id === data.vehicle_id);
+          const index = prev.findIndex(v => v.vehicle_id === key);
           if (index >= 0) {
             const updated = [...prev];
             updated[index] = { ...updated[index], ...data };
@@ -351,25 +321,13 @@ const useWebSocket = (userId?: string) => {
           return prev;
         });
       } else if (event === 'delete') {
-        setVehicles(prev => prev.filter(v => v.vehicle_id !== data.vehicle_id));
+        setVehicles(prev => prev.filter(v => v.vehicle_id !== key));
       }
     } else if (collection === 'vehicle_datas') {
       if (event === 'create') {
         // Add new vehicle data
         setVehicleData(prev => [data, ...prev].slice(0, 100)); // Keep last 100
         setLastUpdate(new Date());
-        console.log('🆕 New vehicle data added');
-      } else if (event === 'update') {
-        // Update existing record
-        setVehicleData(prev => {
-          const index = prev.findIndex(v => v.gps_id === data.gps_id);
-          if (index >= 0) {
-            const updated = [...prev];
-            updated[index] = { ...updated[index], ...data };
-            return updated;
-          }
-          return prev;
-        });
       }
     }
   }, [userId]);
