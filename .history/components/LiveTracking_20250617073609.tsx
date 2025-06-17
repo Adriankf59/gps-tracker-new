@@ -358,7 +358,6 @@ export function LiveTracking() {
   const [selectedVehicleCoords, setSelectedVehicleCoords] = useState<[number, number] | null>(null);
   const [assignedGeofenceForDisplay, setAssignedGeofenceForDisplay] = useState<ProjectGeofence | null>(null);
   const [isInitialized, setIsInitialized] = useState(false);
-  const [autoCenter, setAutoCenter] = useState(true); // Auto-center state
   
   // Mobile UI states
   const [showVehicleSheet, setShowVehicleSheet] = useState(false);
@@ -586,12 +585,6 @@ export function LiveTracking() {
     }
   }, [processedVehicles, handleVehicleSelect]);
 
-  // Handle map interaction (disable auto-center when user interacts with map)
-  const handleMapClick = useCallback(() => {
-    // Optionally disable auto-center when user clicks on map
-    // setAutoCenter(false);
-  }, []);
-
   const handleRefresh = useCallback(async () => {
     if (!isOnline) {
       toast.error('Cannot refresh while offline');
@@ -637,26 +630,6 @@ export function LiveTracking() {
       }
     }
   }, [processedVehicles.length, selectedVehicleId, isInitialized, handleVehicleSelect]);
-
-  // Auto-center map when selected vehicle moves
-  useEffect(() => {
-    if (!autoCenter || !selectedVehicleId) return;
-
-    const selectedVehicle = processedVehicles.find(v => v.vehicle_id === selectedVehicleId);
-    if (selectedVehicle?.latestData?.latitude && selectedVehicle?.latestData?.longitude) {
-      const lat = parseFloat_(selectedVehicle.latestData.latitude);
-      const lng = parseFloat_(selectedVehicle.latestData.longitude);
-      
-      if (lat && lng && !isNaN(lat) && !isNaN(lng)) {
-        // Only update if coordinates have actually changed
-        if (!selectedVehicleCoords || 
-            Math.abs(selectedVehicleCoords[0] - lat) > 0.00001 || 
-            Math.abs(selectedVehicleCoords[1] - lng) > 0.00001) {
-          setSelectedVehicleCoords([lat, lng]);
-        }
-      }
-    }
-  }, [autoCenter, selectedVehicleId, processedVehicles, selectedVehicleCoords]);
 
   // Style helpers
   const getStatusColorClass = useCallback((status: VehicleWithTracking['status']): string => {
@@ -804,7 +777,7 @@ export function LiveTracking() {
               centerCoordinates={selectedVehicleCoords}
               zoomLevel={selectedVehicleId && selectedVehicleCoords ? 16 : 6}
               onVehicleClick={handleMapVehicleClick}
-              onMapClick={handleMapClick}
+              onMapClick={() => {}}
               displayGeofences={processedGeofenceForMapDisplay}
             />
             
@@ -819,24 +792,6 @@ export function LiveTracking() {
                     </div>
                   </CardContent>
                 </Card>
-              </div>
-            )}
-
-            {/* Auto-center toggle button */}
-            {selectedVehicleId && (
-              <div className="absolute top-2 right-2 sm:top-4 sm:right-4 z-10">
-                <Button
-                  variant={autoCenter ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setAutoCenter(!autoCenter)}
-                  className={`shadow-md ${autoCenter ? 'bg-blue-600 hover:bg-blue-700' : ''}`}
-                  title={autoCenter ? "Auto-center is ON" : "Auto-center is OFF"}
-                >
-                  <Navigation className={`w-4 h-4 ${autoCenter ? 'animate-pulse' : ''}`} />
-                  <span className="hidden sm:inline ml-1">
-                    {autoCenter ? 'Following' : 'Free'}
-                  </span>
-                </Button>
               </div>
             )}
 
@@ -875,19 +830,6 @@ export function LiveTracking() {
                       <Clock className="w-4 h-4 mx-auto text-slate-500 mb-1" />
                       <p>{selectedVehicle.lastUpdateString}</p>
                     </div>
-                  </div>
-                  
-                  {/* Auto-center toggle for mobile */}
-                  <div className="mt-2 pt-2 border-t">
-                    <Button
-                      variant={autoCenter ? "default" : "outline"}
-                      size="sm"
-                      onClick={() => setAutoCenter(!autoCenter)}
-                      className={`w-full h-7 text-xs ${autoCenter ? 'bg-blue-600 hover:bg-blue-700' : ''}`}
-                    >
-                      <Navigation className={`w-3 h-3 mr-1 ${autoCenter ? 'animate-pulse' : ''}`} />
-                      {autoCenter ? 'Auto-center ON' : 'Auto-center OFF'}
-                    </Button>
                   </div>
                 </div>
               </div>

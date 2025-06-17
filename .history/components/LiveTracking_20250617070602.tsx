@@ -19,10 +19,12 @@ import {
   AlertCircle,
   Eye,
   Shield,
+  Bell,
   Wifi,
   WifiOff,
   List,
-  ChevronUp
+  ChevronUp,
+  Menu
 } from "lucide-react";
 import dynamic from 'next/dynamic';
 import { toast } from 'sonner';
@@ -116,6 +118,8 @@ interface ProcessedVehicleForMap {
   status: 'moving' | 'parked' | 'offline';
 }
 
+
+
 // Utility functions
 const parseFloat_ = (value: string | null | undefined): number => {
   if (!value) return 0;
@@ -125,11 +129,9 @@ const parseFloat_ = (value: string | null | undefined): number => {
 
 // Custom hooks
 const useOnlineStatus = () => {
-  const [isOnline, setIsOnline] = useState(true);
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
   
   useEffect(() => {
-    setIsOnline(navigator.onLine);
-    
     const handleOnline = () => setIsOnline(true);
     const handleOffline = () => setIsOnline(false);
     
@@ -161,7 +163,7 @@ const useUser = () => {
   }, []);
 };
 
-// Simple WebSocket Hook
+// WebSocket Hook
 const useWebSocket = (userId?: string) => {
   const [isConnected, setIsConnected] = useState(false);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
@@ -174,71 +176,96 @@ const useWebSocket = (userId?: string) => {
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout>();
   const pingIntervalRef = useRef<NodeJS.Timeout>();
+  const reconnectAttemptsRef = useRef(0);
   const isOnline = useOnlineStatus();
 
-  // Load initial data
-  useEffect(() => {
+  // Load initial data from API
+  const loadInitialData = useCallback(async () => {
     if (!userId) return;
     
-    const loadData = async () => {
-      console.log('Loading initial data...');
-      try {
-        const [vehiclesRes, vehicleDataRes, geofencesRes] = await Promise.all([
-          fetch(`${API_BASE_URL}/items/vehicle?filter[user_id][_eq]=${userId}&limit=-1`),
-          fetch(`${API_BASE_URL}/items/vehicle_datas?limit=1000&sort=-timestamp`),
-          fetch(`${API_BASE_URL}/items/geofence?filter[user_id][_eq]=${userId}`)
-        ]);
-
-        if (vehiclesRes.ok) {
-          const data = await vehiclesRes.json();
-          setVehicles(data.data || []);
-        }
-
-        if (vehicleDataRes.ok) {
-          const data = await vehicleDataRes.json();
-          setVehicleData(data.data || []);
-        }
-
-        if (geofencesRes.ok) {
-          const data = await geofencesRes.json();
-          const processed = (data.data || []).map((gf: any) => ({
-            ...gf,
-            definition: typeof gf.definition === 'string' ? JSON.parse(gf.definition) : gf.definition
-          }));
-          setGeofences(processed);
-        }
-      } catch (error) {
-        console.error('Failed to load initial data:', error);
-      } finally {
-        setIsInitialLoading(false);
+    console.log('📥 Loading initial data from API...');
+    try {
+      // Fetch vehicles
+      const vehiclesResponse = await fetch(`${API_BASE_URL}/items/vehicle?filter[user_id][_eq]=${userId}&limit=-1`);
+      if (vehiclesResponse.ok) {
+        const vehiclesData = await vehiclesResponse.json();
+        setVehicles(vehiclesData.data || []);
+        console.log(`📊 Loaded ${vehiclesData.data?.length || 0} vehicles`);
       }
-    };
-
-    loadData();
+      
+      // Fetch vehicle data
+      const vehicleDataResponse = await fetch(`${API_BASE_URL}/items/vehicle_datas?limit=1000&sort=-timestamp`);
+      if (vehicleDataResponse.ok) {
+        const vData = await vehicleDataResponse.json();
+        setVehicleData(vData.data || []);
+        console.log(`📊 Loaded ${vData.data?.length || 0} vehicle data records`);
+      }
+      
+      // Fetch geofences
+      const geofencesResponse = await fetch(`${API_BASE_URL}/items/geofence?filter[user_id][_eq]=${userId}`);
+      if (geofencesResponse.ok) {
+        const geoData = await geofencesResponse.json();
+        const processedGeofences = (geoData.data || []).map((gf: any) => ({
+          ...gf,
+          definition: typeof gf.definition === 'string' ? JSON.parse(gf.definition) : gf.definition
+        }));
+        setGeofences(processedGeofences);
+        console.log(`📊 Loaded ${processedGeofences.length} geofences`);
+      }
+      
+      setIsInitialLoading(false);
+    } catch (error) {
+      console.error('Failed to load initial data:', error);
+      setIsInitialLoading(false);
+    }
   }, [userId]);
 
-  // WebSocket connection
-  useEffect(() => {
-    if (!userId || !isOnline) return;
+  const connect = useCallback(() => {
+    if (!userId || !isOnline) {
+      setConnectionError('No user ID or offline');
+      return;
+    }
+    
+    if (wsRef.current?.readyState === WebSocket.CONNECTING || 
+        wsRef.current?.readyState === WebSocket.OPEN) {
+      return;
+    }
 
-    const connect = () => {
-      if (wsRef.current?.readyState === WebSocket.OPEN) return;
+    setConnectionError(null);
+    console.log('🔌 Attempting WebSocket connection...');
 
-      console.log('Connecting to WebSocket...');
+    try {
       const ws = new WebSocket(`${WS_URL}?userId=${userId}`);
       wsRef.current = ws;
 
       ws.onopen = () => {
-        console.log('WebSocket connected');
+        console.log('✅ WebSocket connected');
         setIsConnected(true);
         setConnectionError(null);
+        reconnectAttemptsRef.current = 0;
         
-        // Subscribe
-        ws.send(JSON.stringify({ type: 'subscribe', collection: 'vehicle' }));
-        ws.send(JSON.stringify({ type: 'subscribe', collection: 'vehicle_datas' }));
-        ws.send(JSON.stringify({ type: 'subscribe', collection: 'geofence' }));
+        // Subscribe to collections
+        ws.send(JSON.stringify({ 
+          type: 'subscribe',
+          collection: 'vehicle'
+        }));
         
-        // Ping
+        ws.send(JSON.stringify({ 
+          type: 'subscribe',
+          collection: 'vehicle_datas'
+        }));
+        
+        ws.send(JSON.stringify({ 
+          type: 'subscribe',
+          collection: 'geofence'
+        }));
+        
+        ws.send(JSON.stringify({ 
+          type: 'subscribe',
+          collection: 'alerts'
+        }));
+        
+        // Setup ping interval
         pingIntervalRef.current = setInterval(() => {
           if (ws.readyState === WebSocket.OPEN) {
             ws.send(JSON.stringify({ type: 'ping' }));
@@ -249,61 +276,59 @@ const useWebSocket = (userId?: string) => {
       ws.onmessage = (event) => {
         try {
           const message = JSON.parse(event.data);
+          console.log('📨 WebSocket message:', message.type);
           
-          if (message.type === 'subscription' && message.data) {
-            const { event: eventType, data } = message;
+          if (message.type === 'subscription') {
+            const { event, data } = message;
             
-            if (eventType === 'init' && Array.isArray(data) && data.length > 0) {
+            if (event === 'init' && data && data.length > 0) {
               const firstItem = data[0];
               
               if (firstItem.vehicle_id && firstItem.license_plate) {
                 setVehicles(data.filter((v: Vehicle) => v.user_id === userId));
               } else if (firstItem.gps_id && firstItem.latitude) {
-                setVehicleData(data);
+                setVehicleData(prev => {
+                  const dataMap = new Map(prev.map(d => [d.gps_id || d.vehicle_id, d]));
+                  data.forEach((d: VehicleData) => {
+                    const key = d.gps_id || d.vehicle_id;
+                    if (key) dataMap.set(key, d);
+                  });
+                  return Array.from(dataMap.values());
+                });
                 setLastUpdate(new Date());
-              } else if (firstItem.geofence_id) {
-                const processed = data
+              } else if (firstItem.geofence_id && firstItem.definition) {
+                const processedGeofences = data
                   .filter((gf: any) => gf.user_id === userId)
                   .map((gf: any) => ({
                     ...gf,
                     definition: typeof gf.definition === 'string' ? JSON.parse(gf.definition) : gf.definition
                   }));
-                setGeofences(processed);
+                setGeofences(processedGeofences);
+              } else if (firstItem.alert_id) {
+                setAlerts(data.filter((a: GeofenceAlert) => {
+                  const vehicle = vehicles.find(v => v.vehicle_id === a.vehicle_id.toString());
+                  return vehicle && vehicle.user_id === userId;
+                }));
               }
-            } else if ((eventType === 'create' || eventType === 'update') && data[0]) {
-              const item = data[0];
-              
-              if (item.vehicle_id && item.license_plate) {
-                setVehicles(prev => {
-                  const index = prev.findIndex(v => v.vehicle_id === item.vehicle_id);
-                  if (index >= 0) {
-                    const updated = [...prev];
-                    updated[index] = item;
-                    return updated;
-                  }
-                  return item.user_id === userId ? [...prev, item] : prev;
-                });
-              } else if (item.gps_id && item.latitude) {
-                setVehicleData(prev => {
-                  const updated = [item, ...prev.filter(d => d.gps_id !== item.gps_id)].slice(0, 1000);
-                  return updated;
-                });
-                setLastUpdate(new Date());
-              }
+            } else if (event === 'create' || event === 'update') {
+              handleRealtimeUpdate({ event, data: data[0] });
+            } else if (event === 'delete') {
+              handleRealtimeDelete({ data: data[0] });
             }
           }
         } catch (error) {
-          console.error('WebSocket message error:', error);
+          console.error('Failed to parse WebSocket message:', error);
         }
       };
 
-      ws.onerror = () => {
+      ws.onerror = (error) => {
+        console.error('❌ WebSocket error:', error);
         setIsConnected(false);
-        setConnectionError('Connection error');
+        setConnectionError('WebSocket connection error');
       };
 
-      ws.onclose = () => {
-        console.log('WebSocket closed');
+      ws.onclose = (event) => {
+        console.log(`🔌 WebSocket closed: ${event.code} - ${event.reason}`);
         setIsConnected(false);
         wsRef.current = null;
         
@@ -311,33 +336,118 @@ const useWebSocket = (userId?: string) => {
           clearInterval(pingIntervalRef.current);
         }
         
-        // Reconnect
-        if (isOnline) {
-          reconnectTimeoutRef.current = setTimeout(connect, RECONNECT_INTERVAL);
+        if (isOnline && event.code !== 1000) {
+          reconnectAttemptsRef.current++;
+          const delay = Math.min(RECONNECT_INTERVAL * reconnectAttemptsRef.current, 30000);
+          setConnectionError(`Reconnecting in ${delay/1000}s...`);
+          reconnectTimeoutRef.current = setTimeout(connect, delay);
         }
       };
-    };
 
-    connect();
+    } catch (error) {
+      console.error('Failed to connect to WebSocket:', error);
+      setIsConnected(false);
+      setConnectionError('Failed to establish connection');
+    }
+  }, [userId, isOnline, vehicles]);
 
-    return () => {
-      if (wsRef.current) {
-        wsRef.current.close();
-      }
-      if (reconnectTimeoutRef.current) {
-        clearTimeout(reconnectTimeoutRef.current);
-      }
-      if (pingIntervalRef.current) {
-        clearInterval(pingIntervalRef.current);
-      }
-    };
-  }, [userId, isOnline]);
+  const handleRealtimeUpdate = useCallback((message: any) => {
+    const { data } = message;
+    
+    if (data.vehicle_id && data.license_plate) {
+      // Vehicle update
+      setVehicles(prev => {
+        const index = prev.findIndex(v => v.vehicle_id === data.vehicle_id);
+        if (index >= 0) {
+          const updated = [...prev];
+          updated[index] = { ...updated[index], ...data };
+          return updated;
+        } else if (data.user_id === userId) {
+          return [...prev, data];
+        }
+        return prev;
+      });
+    } else if (data.gps_id && data.latitude) {
+      // Vehicle data update
+      setVehicleData(prev => {
+        const key = data.gps_id || data.vehicle_id;
+        const existingIndex = prev.findIndex(d => (d.gps_id || d.vehicle_id) === key);
+        
+        if (existingIndex >= 0) {
+          const updated = [...prev];
+          updated[existingIndex] = data;
+          return updated;
+        } else {
+          return [data, ...prev].slice(0, 1000);
+        }
+      });
+      setLastUpdate(new Date());
+    } else if (data.geofence_id && data.definition) {
+      // Geofence update
+      const processed = {
+        ...data,
+        definition: typeof data.definition === 'string' ? JSON.parse(data.definition) : data.definition
+      };
+      
+      setGeofences(prev => {
+        const index = prev.findIndex(g => g.geofence_id === data.geofence_id);
+        if (index >= 0) {
+          const updated = [...prev];
+          updated[index] = processed;
+          return updated;
+        } else if (data.user_id === userId) {
+          return [...prev, processed];
+        }
+        return prev;
+      });
+    }
+  }, [userId]);
+
+  const handleRealtimeDelete = useCallback((message: any) => {
+    const { data } = message;
+    
+    if (data.vehicle_id) {
+      setVehicles(prev => prev.filter(v => v.vehicle_id !== data.vehicle_id));
+    } else if (data.geofence_id) {
+      setGeofences(prev => prev.filter(g => g.geofence_id !== data.geofence_id));
+    }
+  }, []);
+
+  const disconnect = useCallback(() => {
+    if (wsRef.current) {
+      wsRef.current.close(1000, 'User disconnect');
+      wsRef.current = null;
+    }
+    
+    if (reconnectTimeoutRef.current) {
+      clearTimeout(reconnectTimeoutRef.current);
+    }
+    
+    if (pingIntervalRef.current) {
+      clearInterval(pingIntervalRef.current);
+    }
+    
+    setIsConnected(false);
+  }, []);
 
   const refresh = useCallback(async () => {
+    if (!userId) return;
     toast.info('Refreshing data...');
-    // Trigger re-fetch by updating a dependency
-    setLastUpdate(new Date());
-  }, []);
+    await loadInitialData();
+    toast.success('Data refreshed');
+  }, [userId, loadInitialData]);
+
+  useEffect(() => {
+    loadInitialData();
+    const connectTimeout = setTimeout(() => {
+      connect();
+    }, 500);
+    
+    return () => {
+      clearTimeout(connectTimeout);
+      disconnect();
+    };
+  }, [userId]);
 
   return {
     isConnected,
@@ -351,6 +461,10 @@ const useWebSocket = (userId?: string) => {
   };
 };
 
+// Geofence detection utilities - Removed (now handled in dashboard)
+
+// Alert notification component - Removed (now handled in dashboard)
+
 export function LiveTracking() {
   // State management
   const [selectedVehicleId, setSelectedVehicleId] = useState<string | null>(null);
@@ -358,7 +472,6 @@ export function LiveTracking() {
   const [selectedVehicleCoords, setSelectedVehicleCoords] = useState<[number, number] | null>(null);
   const [assignedGeofenceForDisplay, setAssignedGeofenceForDisplay] = useState<ProjectGeofence | null>(null);
   const [isInitialized, setIsInitialized] = useState(false);
-  const [autoCenter, setAutoCenter] = useState(true); // Auto-center state
   
   // Mobile UI states
   const [showVehicleSheet, setShowVehicleSheet] = useState(false);
@@ -586,12 +699,6 @@ export function LiveTracking() {
     }
   }, [processedVehicles, handleVehicleSelect]);
 
-  // Handle map interaction (disable auto-center when user interacts with map)
-  const handleMapClick = useCallback(() => {
-    // Optionally disable auto-center when user clicks on map
-    // setAutoCenter(false);
-  }, []);
-
   const handleRefresh = useCallback(async () => {
     if (!isOnline) {
       toast.error('Cannot refresh while offline');
@@ -606,7 +713,7 @@ export function LiveTracking() {
     await refresh();
   }, [isOnline, isConnected, refresh]);
 
-  // Initialize from session storage
+  // Initialize from session storage - FIXED to prevent infinite loops
   useEffect(() => {
     if (typeof window === 'undefined' || isInitialized) return;
     
@@ -626,7 +733,7 @@ export function LiveTracking() {
       console.error('Initialization error:', error);
       setIsInitialized(true);
     }
-  }, [isInitialized]);
+  }, [isInitialized]); // Remove dependencies that change
 
   // Auto-select first vehicle
   useEffect(() => {
@@ -637,26 +744,6 @@ export function LiveTracking() {
       }
     }
   }, [processedVehicles.length, selectedVehicleId, isInitialized, handleVehicleSelect]);
-
-  // Auto-center map when selected vehicle moves
-  useEffect(() => {
-    if (!autoCenter || !selectedVehicleId) return;
-
-    const selectedVehicle = processedVehicles.find(v => v.vehicle_id === selectedVehicleId);
-    if (selectedVehicle?.latestData?.latitude && selectedVehicle?.latestData?.longitude) {
-      const lat = parseFloat_(selectedVehicle.latestData.latitude);
-      const lng = parseFloat_(selectedVehicle.latestData.longitude);
-      
-      if (lat && lng && !isNaN(lat) && !isNaN(lng)) {
-        // Only update if coordinates have actually changed
-        if (!selectedVehicleCoords || 
-            Math.abs(selectedVehicleCoords[0] - lat) > 0.00001 || 
-            Math.abs(selectedVehicleCoords[1] - lng) > 0.00001) {
-          setSelectedVehicleCoords([lat, lng]);
-        }
-      }
-    }
-  }, [autoCenter, selectedVehicleId, processedVehicles, selectedVehicleCoords]);
 
   // Style helpers
   const getStatusColorClass = useCallback((status: VehicleWithTracking['status']): string => {
@@ -804,7 +891,7 @@ export function LiveTracking() {
               centerCoordinates={selectedVehicleCoords}
               zoomLevel={selectedVehicleId && selectedVehicleCoords ? 16 : 6}
               onVehicleClick={handleMapVehicleClick}
-              onMapClick={handleMapClick}
+              onMapClick={() => {}}
               displayGeofences={processedGeofenceForMapDisplay}
             />
             
@@ -819,24 +906,6 @@ export function LiveTracking() {
                     </div>
                   </CardContent>
                 </Card>
-              </div>
-            )}
-
-            {/* Auto-center toggle button */}
-            {selectedVehicleId && (
-              <div className="absolute top-2 right-2 sm:top-4 sm:right-4 z-10">
-                <Button
-                  variant={autoCenter ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setAutoCenter(!autoCenter)}
-                  className={`shadow-md ${autoCenter ? 'bg-blue-600 hover:bg-blue-700' : ''}`}
-                  title={autoCenter ? "Auto-center is ON" : "Auto-center is OFF"}
-                >
-                  <Navigation className={`w-4 h-4 ${autoCenter ? 'animate-pulse' : ''}`} />
-                  <span className="hidden sm:inline ml-1">
-                    {autoCenter ? 'Following' : 'Free'}
-                  </span>
-                </Button>
               </div>
             )}
 
@@ -875,19 +944,6 @@ export function LiveTracking() {
                       <Clock className="w-4 h-4 mx-auto text-slate-500 mb-1" />
                       <p>{selectedVehicle.lastUpdateString}</p>
                     </div>
-                  </div>
-                  
-                  {/* Auto-center toggle for mobile */}
-                  <div className="mt-2 pt-2 border-t">
-                    <Button
-                      variant={autoCenter ? "default" : "outline"}
-                      size="sm"
-                      onClick={() => setAutoCenter(!autoCenter)}
-                      className={`w-full h-7 text-xs ${autoCenter ? 'bg-blue-600 hover:bg-blue-700' : ''}`}
-                    >
-                      <Navigation className={`w-3 h-3 mr-1 ${autoCenter ? 'animate-pulse' : ''}`} />
-                      {autoCenter ? 'Auto-center ON' : 'Auto-center OFF'}
-                    </Button>
                   </div>
                 </div>
               </div>
