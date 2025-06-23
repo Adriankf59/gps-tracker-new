@@ -966,11 +966,6 @@ const DashboardPage = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
-  // Add refs for tracking to prevent infinite loops
-  const hasRunInitialCheck = useRef(false);
-  const debugHelpersLoaded = useRef(false);
-  const geofencesLogged = useRef(false);
-
   // Use WebSocket with Geofence Detection - PASS USER AS PARAMETER
   const { 
     isConnected, 
@@ -986,21 +981,14 @@ const DashboardPage = () => {
   // Get detector functions separately
   const { resetVehicleStateInDetector } = useProjectGeofenceDetection();
 
-  // FIXED: Initial geofence check when data is loaded
+  // Initial geofence check when data is loaded
   useEffect(() => {
-    // Skip if data not complete
+    // Only run when we have all required data
     if (vehicles.length === 0 || vehicleData.length === 0 || geofences.length === 0) {
       return;
     }
     
-    // Skip if already ran
-    if (hasRunInitialCheck.current) {
-      return;
-    }
-    
-    hasRunInitialCheck.current = true;
-    
-    console.log('🚀 Running initial geofence check (one-time only)...');
+    console.log('🚀 Running initial geofence check...');
     console.log(`Found ${vehicles.length} vehicles, ${vehicleData.length} GPS data points, ${geofences.length} geofences`);
     
     // Create a map of latest vehicle data
@@ -1024,6 +1012,7 @@ const DashboardPage = () => {
         return;
       }
       
+      // Find latest GPS data for this vehicle
       const latestData = latestDataMap.get(vehicle.gps_id || '') || 
                         latestDataMap.get(vehicle.vehicle_id);
       
@@ -1037,6 +1026,7 @@ const DashboardPage = () => {
         return;
       }
       
+      // Find the assigned geofence
       const geofence = geofences.find(g => 
         g.geofence_id.toString() === vehicle.geofence_id?.toString()
       );
@@ -1048,222 +1038,226 @@ const DashboardPage = () => {
       
       console.log(`✅ Checking vehicle ${vehicle.name} against geofence ${geofence.name}`);
       
+      // Reset vehicle state to force initial check
       if (resetVehicleStateInDetector) {
         resetVehicleStateInDetector(vehicle.vehicle_id);
       }
       
+      // Perform geofence check with forceInitialCheck flag
       checkGeofenceViolations(vehicle, latestData);
     });
     
     console.log('✅ Initial geofence check completed');
-  }, [vehicles.length, vehicleData.length, geofences.length]);
+    
+    // Only run this once when all data is first loaded
+  }, [vehicles.length > 0 && vehicleData.length > 0 && geofences.length > 0]);
 
-  // FIXED: Monitor geofences loaded
+  // Add this to check if geofences are loaded into detector
   useEffect(() => {
-    if (geofences.length > 0 && !geofencesLogged.current) {
-      geofencesLogged.current = true;
+    if (geofences.length > 0) {
       console.log('📊 Geofences loaded into detector:', geofences.length);
       geofences.forEach(gf => {
         console.log(`- ${gf.name} (ID: ${gf.geofence_id}, Type: ${gf.type}, Rule: ${gf.rule_type}, Status: ${gf.status})`);
       });
+    } else {
+      console.log('⚠️ No geofences loaded!');
     }
-  }, [geofences.length]);
+  }, [geofences]);
 
-  // FIXED: Debug helpers - update object but don't log repeatedly
+  // Expose debug data to window for testing (only in development)
   useEffect(() => {
-    if (process.env.NODE_ENV !== 'development' || !checkGeofenceViolations) {
-      return;
-    }
-
-    // Update debug object with latest data
-    (window as any).__GPS_DEBUG__ = {
-      vehicles,
-      geofences,
-      vehicleData,
-      user,
-      isConnected,
-      
-      checkVehicleGeofences: () => {
-        console.log('=== VEHICLE GEOFENCE CHECK ===');
-        vehicles.forEach(v => {
-          console.log(`${v.name} (ID: ${v.vehicle_id}, GPS: ${v.gps_id}): Geofence ${v.geofence_id || 'NONE'}`);
-        });
-      },
-      
-      checkActiveGeofences: () => {
-        console.log('\n=== ACTIVE GEOFENCES ===');
-        const activeGeofences = geofences.filter(g => g.status === 'active');
-        if (activeGeofences.length === 0) {
-          console.log('❌ No active geofences found!');
-        } else {
-          activeGeofences.forEach(g => {
-            console.log(`ID: ${g.geofence_id} - ${g.name} (${g.rule_type})`);
-            console.log('  Definition:', g.definition);
+    if (process.env.NODE_ENV === 'development' && checkGeofenceViolations) {
+      // Create global debug object
+      (window as any).__GPS_DEBUG__ = {
+        vehicles,
+        geofences,
+        vehicleData,
+        user,
+        isConnected,
+        
+        // Helper functions
+        checkVehicleGeofences: () => {
+          console.log('=== VEHICLE GEOFENCE CHECK ===');
+          vehicles.forEach(v => {
+            console.log(`${v.name} (ID: ${v.vehicle_id}, GPS: ${v.gps_id}): Geofence ${v.geofence_id || 'NONE'}`);
           });
-        }
-      },
-      
-      checkVehiclePositions: () => {
-        console.log('\n=== LATEST VEHICLE POSITIONS ===');
-        vehicles.forEach(v => {
-          const data = vehicleData.find(d => d.gps_id === v.gps_id);
-          if (data) {
-            console.log(`${v.name}: Lat ${data.latitude}, Lng ${data.longitude}, Time: ${data.timestamp}`);
+        },
+        
+        checkActiveGeofences: () => {
+          console.log('\n=== ACTIVE GEOFENCES ===');
+          const activeGeofences = geofences.filter(g => g.status === 'active');
+          if (activeGeofences.length === 0) {
+            console.log('❌ No active geofences found!');
           } else {
-            console.log(`${v.name}: No GPS data found for GPS ID: ${v.gps_id}`);
+            activeGeofences.forEach(g => {
+              console.log(`ID: ${g.geofence_id} - ${g.name} (${g.rule_type})`);
+              console.log('  Definition:', g.definition);
+            });
           }
-        });
+        },
         
-        console.log('\n=== ALL GPS DATA AVAILABLE ===');
-        const uniqueGpsIds = [...new Set(vehicleData.map(d => d.gps_id))];
-        console.log('Unique GPS IDs in vehicle data:', uniqueGpsIds);
-        
-        uniqueGpsIds.forEach(gpsId => {
-          const latestData = vehicleData.find(d => d.gps_id === gpsId);
-          if (latestData) {
-            console.log(`GPS ID ${gpsId}: Lat ${latestData.latitude}, Lng ${latestData.longitude}`);
-          }
-        });
-      },
-      
-      checkGeofenceAssignment: () => {
-        console.log('\n=== GEOFENCE ASSIGNMENT CHECK ===');
-        vehicles.forEach(v => {
-          if (v.geofence_id) {
-            const gf = geofences.find(g => g.geofence_id.toString() === v.geofence_id.toString());
-            if (gf) {
-              console.log(`✅ ${v.name}: Assigned to "${gf.name}" (${gf.rule_type})`);
+        checkVehiclePositions: () => {
+          console.log('\n=== LATEST VEHICLE POSITIONS ===');
+          vehicles.forEach(v => {
+            const data = vehicleData.find(d => d.gps_id === v.gps_id);
+            if (data) {
+              console.log(`${v.name}: Lat ${data.latitude}, Lng ${data.longitude}, Time: ${data.timestamp}`);
             } else {
-              console.log(`❌ ${v.name}: Geofence ID ${v.geofence_id} NOT FOUND in geofences list!`);
+              console.log(`${v.name}: No GPS data found for GPS ID: ${v.gps_id}`);
             }
-          } else {
-            console.log(`⚠️ ${v.name}: No geofence assigned`);
-          }
-        });
-      },
-      
-      testEmailAPI: async () => {
-        console.log('Testing email API...');
-        try {
-          const response = await fetch('/api/send-geofence-alert', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              to: user?.email || 'test@example.com',
-              vehicleName: 'Test Vehicle',
-              licensePlate: 'TEST 123',
-              geofenceName: 'Test Geofence',
-              violationType: 'violation_enter',
-              location: '-6.8920, 107.6949',
-              timestamp: new Date().toISOString(),
-              userName: user?.full_name || user?.username || 'Test User'
-            })
           });
-          const data = await response.json();
-          console.log('Email API Response:', data);
-          if (response.ok) {
-            console.log('✅ Email sent successfully!');
-          } else {
-            console.log('❌ Email failed:', data);
-          }
-        } catch (err) {
-          console.error('Email API Error:', err);
-        }
-      },
-      
-      simulateGeofenceViolation: (vehicleIndex = 0) => {
-        const vehicle = vehicles[vehicleIndex];
-        if (!vehicle) {
-          console.error('Vehicle not found at index:', vehicleIndex);
-          return;
-        }
-        
-        if (!vehicle.geofence_id) {
-          console.error('Vehicle has no geofence assigned');
-          return;
-        }
-        
-        const geofence = geofences.find(g => g.geofence_id.toString() === vehicle.geofence_id.toString());
-        if (!geofence) {
-          console.error('Geofence not found for vehicle');
-          return;
-        }
-        
-        console.log(`Simulating violation for ${vehicle.name} on geofence ${geofence.name}`);
-        
-        let testPosition: [number, number];
-        if (geofence.type === 'circle' && geofence.definition.center) {
-          testPosition = [geofence.definition.center[0], geofence.definition.center[1]];
-        } else if (geofence.type === 'polygon' && geofence.definition.coordinates?.[0]?.[0]) {
-          testPosition = geofence.definition.coordinates[0][0];
-        } else {
-          console.error('Cannot determine test position from geofence');
-          return;
-        }
-        
-        const fakeGPSData: VehicleData = {
-          gps_id: vehicle.gps_id,
-          vehicle_id: vehicle.vehicle_id,
-          latitude: testPosition[1].toString(),
-          longitude: testPosition[0].toString(),
-          timestamp: new Date().toISOString(),
-          speed: 0,
-          ignition_status: "on",
-          battery_level: "100",
-          fuel_level: "50"
-        };
-        
-        console.log('Simulating GPS update:', fakeGPSData);
-        
-        if (checkGeofenceViolations) {
-          checkGeofenceViolations(vehicle, fakeGPSData);
-        } else {
-          console.error('checkGeofenceViolations function not available');
-        }
-      },
-      
-      runAllChecks: () => {
-        console.log('🔍 RUNNING ALL DEBUG CHECKS...\n');
-        (window as any).__GPS_DEBUG__.checkVehicleGeofences();
-        (window as any).__GPS_DEBUG__.checkActiveGeofences();
-        (window as any).__GPS_DEBUG__.checkVehiclePositions();
-        (window as any).__GPS_DEBUG__.checkGeofenceAssignment();
-        console.log('\n✅ All checks completed. Check the output above for issues.');
-      },
-      
-      resetVehicleGeofenceState: (vehicleIndex = 0) => {
-        const vehicle = vehicles[vehicleIndex];
-        if (!vehicle) {
-          console.error('Vehicle not found at index:', vehicleIndex);
-          return;
-        }
-        
-        console.log(`Resetting geofence state for ${vehicle.name}...`);
-        if (resetVehicleStateInDetector) {
-          resetVehicleStateInDetector(vehicle.vehicle_id);
-          console.log('✅ Vehicle state reset. Next GPS update will trigger fresh detection.');
-        } else {
-          console.error('Reset function not available');
-        }
-      },
-      
-      forceGeofenceCheck: () => {
-        console.log('🔄 Forcing geofence check for all vehicles...');
-        vehicles.forEach((vehicle, index) => {
-          if (vehicle.geofence_id) {
-            const latestData = vehicleData.find(d => d.gps_id === vehicle.gps_id);
+          
+          // Also show all GPS IDs in vehicleData
+          console.log('\n=== ALL GPS DATA AVAILABLE ===');
+          const uniqueGpsIds = [...new Set(vehicleData.map(d => d.gps_id))];
+          console.log('Unique GPS IDs in vehicle data:', uniqueGpsIds);
+          
+          // Show latest data for each GPS ID
+          uniqueGpsIds.forEach(gpsId => {
+            const latestData = vehicleData.find(d => d.gps_id === gpsId);
             if (latestData) {
-              console.log(`Checking ${vehicle.name}...`);
-              checkGeofenceViolations(vehicle, latestData);
+              console.log(`GPS ID ${gpsId}: Lat ${latestData.latitude}, Lng ${latestData.longitude}`);
             }
+          });
+        },
+        
+        checkGeofenceAssignment: () => {
+          console.log('\n=== GEOFENCE ASSIGNMENT CHECK ===');
+          vehicles.forEach(v => {
+            if (v.geofence_id) {
+              const gf = geofences.find(g => g.geofence_id.toString() === v.geofence_id.toString());
+              if (gf) {
+                console.log(`✅ ${v.name}: Assigned to "${gf.name}" (${gf.rule_type})`);
+              } else {
+                console.log(`❌ ${v.name}: Geofence ID ${v.geofence_id} NOT FOUND in geofences list!`);
+              }
+            } else {
+              console.log(`⚠️ ${v.name}: No geofence assigned`);
+            }
+          });
+        },
+        
+        testEmailAPI: async () => {
+          console.log('Testing email API...');
+          try {
+            const response = await fetch('/api/send-geofence-alert', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                to: user?.email || 'test@example.com',
+                vehicleName: 'Test Vehicle',
+                licensePlate: 'TEST 123',
+                geofenceName: 'Test Geofence',
+                violationType: 'violation_enter',
+                location: '-6.8920, 107.6949',
+                timestamp: new Date().toISOString(),
+                userName: user?.full_name || user?.username || 'Test User'
+              })
+            });
+            const data = await response.json();
+            console.log('Email API Response:', data);
+            if (response.ok) {
+              console.log('✅ Email sent successfully!');
+            } else {
+              console.log('❌ Email failed:', data);
+            }
+          } catch (err) {
+            console.error('Email API Error:', err);
           }
-        });
-      }
-    };
-    
-    // Log helpers only once
-    if (!debugHelpersLoaded.current) {
-      debugHelpersLoaded.current = true;
+        },
+        
+        simulateGeofenceViolation: (vehicleIndex = 0) => {
+          const vehicle = vehicles[vehicleIndex];
+          if (!vehicle) {
+            console.error('Vehicle not found at index:', vehicleIndex);
+            return;
+          }
+          
+          if (!vehicle.geofence_id) {
+            console.error('Vehicle has no geofence assigned');
+            return;
+          }
+          
+          const geofence = geofences.find(g => g.geofence_id.toString() === vehicle.geofence_id.toString());
+          if (!geofence) {
+            console.error('Geofence not found for vehicle');
+            return;
+          }
+          
+          console.log(`Simulating violation for ${vehicle.name} on geofence ${geofence.name}`);
+          
+          // Get a position inside the geofence
+          let testPosition: [number, number];
+          if (geofence.type === 'circle' && geofence.definition.center) {
+            testPosition = [geofence.definition.center[0], geofence.definition.center[1]];
+          } else if (geofence.type === 'polygon' && geofence.definition.coordinates?.[0]?.[0]) {
+            testPosition = geofence.definition.coordinates[0][0];
+          } else {
+            console.error('Cannot determine test position from geofence');
+            return;
+          }
+          
+          const fakeGPSData: VehicleData = {
+            gps_id: vehicle.gps_id,
+            vehicle_id: vehicle.vehicle_id,
+            latitude: testPosition[1].toString(),
+            longitude: testPosition[0].toString(),
+            timestamp: new Date().toISOString(),
+            speed: 0,
+            ignition_status: "on",
+            battery_level: "100",
+            fuel_level: "50"
+          };
+          
+          console.log('Simulating GPS update:', fakeGPSData);
+          
+          // Call the check function
+          if (checkGeofenceViolations) {
+            checkGeofenceViolations(vehicle, fakeGPSData);
+          } else {
+            console.error('checkGeofenceViolations function not available');
+          }
+        },
+        
+        runAllChecks: () => {
+          console.log('🔍 RUNNING ALL DEBUG CHECKS...\n');
+          (window as any).__GPS_DEBUG__.checkVehicleGeofences();
+          (window as any).__GPS_DEBUG__.checkActiveGeofences();
+          (window as any).__GPS_DEBUG__.checkVehiclePositions();
+          (window as any).__GPS_DEBUG__.checkGeofenceAssignment();
+          console.log('\n✅ All checks completed. Check the output above for issues.');
+        },
+        
+        resetVehicleGeofenceState: (vehicleIndex = 0) => {
+          const vehicle = vehicles[vehicleIndex];
+          if (!vehicle) {
+            console.error('Vehicle not found at index:', vehicleIndex);
+            return;
+          }
+          
+          console.log(`Resetting geofence state for ${vehicle.name}...`);
+          if (resetVehicleStateInDetector) {
+            resetVehicleStateInDetector(vehicle.vehicle_id);
+            console.log('✅ Vehicle state reset. Next GPS update will trigger fresh detection.');
+          } else {
+            console.error('Reset function not available');
+          }
+        },
+        
+        forceGeofenceCheck: () => {
+          console.log('🔄 Forcing geofence check for all vehicles...');
+          vehicles.forEach((vehicle, index) => {
+            if (vehicle.geofence_id) {
+              const latestData = vehicleData.find(d => d.gps_id === vehicle.gps_id);
+              if (latestData) {
+                console.log(`Checking ${vehicle.name}...`);
+                checkGeofenceViolations(vehicle, latestData);
+              }
+            }
+          });
+        }
+      };
+      
       console.log('🐛 Debug helpers loaded! Use __GPS_DEBUG__ in console:');
       console.log('- __GPS_DEBUG__.runAllChecks() - Run all diagnostic checks');
       console.log('- __GPS_DEBUG__.checkVehicleGeofences() - Check vehicle geofence assignments');
@@ -1276,16 +1270,6 @@ const DashboardPage = () => {
       console.log('- __GPS_DEBUG__.forceGeofenceCheck() - Force check all vehicles');
     }
   }, [vehicles, geofences, vehicleData, user, isConnected, checkGeofenceViolations, resetVehicleStateInDetector]);
-
-  // Cleanup effect for refs
-  useEffect(() => {
-    return () => {
-      // Reset all refs on unmount
-      hasRunInitialCheck.current = false;
-      debugHelpersLoaded.current = false;
-      geofencesLogged.current = false;
-    };
-  }, []);
 
   // Check if mobile
   const [isMobile, setIsMobile] = useState(false);
