@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
-import React from "react";
 import dynamic from "next/dynamic";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -13,7 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from 'sonner';
 import type { LatLngExpression } from 'leaflet';
-import { geofenceEvents } from '@/lib/events/geofenceEvents';
+import { geofenceEvents } from '@/lib/events/geofenceEvents'; // Import event emitter
 
 // Type for Leaflet Draw events
 interface DrawCreatedEvent {
@@ -22,9 +21,6 @@ interface DrawCreatedEvent {
   originalType?: string;
   originalRadius?: number;
   originalCenter?: any;
-  type?: string;
-  target?: any;
-  sourceTarget?: any;
 }
 
 // Dynamic import with proper typing
@@ -46,7 +42,7 @@ import { API_BASE_URL } from '../api/file';
 // Use proxy endpoints to avoid mixed content
 const useProxy = typeof window !== 'undefined' && window.location.protocol === 'https:';
 
-// API endpoints
+// API endpoints - use local proxy for vehicles, direct for geofence
 const GEOFENCE_API = `${API_BASE_URL}/items/geofence`;
 const VEHICLE_API = useProxy ? '/api/vehicles' : `${API_BASE_URL}/items/vehicle`;
 const VEHICLE_API_SINGLE = useProxy ? '/api/vehicles' : `${API_BASE_URL}/items/vehicle`;
@@ -62,7 +58,7 @@ export type GeofenceDefinition = {
 };
 
 export type Geofence = {
-  id?: number;
+  id?: number; // Tambahan untuk handle kedua format
   geofence_id: number;
   name: string;
   status: 'active' | 'inactive';
@@ -102,6 +98,7 @@ const ensureArray = (value: any): any[] => {
   return [];
 };
 
+// Normalize geofence ID - handle both 'id' and 'geofence_id'
 const normalizeGeofenceId = (gf: any): number => {
   return Number(gf.geofence_id || gf.id || 0);
 };
@@ -109,6 +106,7 @@ const normalizeGeofenceId = (gf: any): number => {
 const validateGeofence = (gf: any): gf is Geofence => {
   if (!gf?.definition) return false;
   
+  // Parse definition if it's a string
   let definition = gf.definition;
   if (typeof definition === 'string') {
     try {
@@ -172,9 +170,7 @@ const getRuleTypeColor = (type: string): string => {
   return colors[type] || 'bg-gray-100 text-gray-700';
 };
 
-export const GeofenceManager = React.memo(function GeofenceManager() {
-  console.log('🚀 GeofenceManager component is rendering!');
-  
+export function GeofenceManager() {
   // State management
   const [currentGeofence, setCurrentGeofence] = useState<Geofence | null>(null);
   const [geofences, setGeofences] = useState<Geofence[]>([]);
@@ -195,7 +191,7 @@ export const GeofenceManager = React.memo(function GeofenceManager() {
 
   const abortRef = useRef<AbortController | null>(null);
 
-  // Debug logging function
+  // Debug logging function - only logs in development
   const debugLog = (message: string, data?: any) => {
     if (process.env.NODE_ENV === 'development') {
       console.log(`[GeofenceManager] ${message}`, data || '');
@@ -212,10 +208,6 @@ export const GeofenceManager = React.memo(function GeofenceManager() {
 
       debugLog('fetchData called with URL:', url);
       debugLog('fetchData options:', options);
-      
-      if (options.method === 'POST' && options.body) {
-        debugLog('POST body:', JSON.parse(options.body as string));
-      }
 
       const response = await fetch(url, {
         ...options,
@@ -229,28 +221,20 @@ export const GeofenceManager = React.memo(function GeofenceManager() {
 
       const responseText = await response.text();
       debugLog('Response status:', response.status);
-      debugLog('Response headers:', Object.fromEntries(response.headers.entries()));
-      debugLog('Response text:', responseText);
+      debugLog('Response headers:', response.headers);
+      debugLog('Response text (first 500 chars):', responseText.substring(0, 500));
 
       if (!response.ok) {
-        console.error('❌ API Error Response:', {
-          status: response.status,
-          statusText: response.statusText,
-          body: responseText
-        });
         throw new Error(`HTTP error! status: ${response.status}, message: ${responseText}`);
       }
       
       try {
         const parsed = JSON.parse(responseText);
-        debugLog('✅ Parsed response:', parsed);
+        debugLog('Parsed response:', parsed);
         return parsed;
       } catch (e) {
         debugLog('Failed to parse JSON:', e);
         debugLog('Raw text was:', responseText);
-        if (response.status === 200 || response.status === 201) {
-          return { success: true };
-        }
         return null;
       }
     } catch (error: any) {
@@ -258,7 +242,7 @@ export const GeofenceManager = React.memo(function GeofenceManager() {
         debugLog('Request aborted');
         return null;
       }
-      console.error('❌ Fetch error:', error);
+      debugLog('Fetch error:', error);
       throw error;
     }
   }, []);
@@ -268,6 +252,7 @@ export const GeofenceManager = React.memo(function GeofenceManager() {
       setFetchError(null);
       debugLog('Fetching geofences for user:', userId);
       
+      // Try multiple query formats to ensure compatibility
       const queries = [
         `${GEOFENCE_API}?filter[user_id][_eq]=${userId}&limit=-1&sort=-date_created`,
         `${GEOFENCE_API}?filter[user_id]=${userId}&limit=-1&sort=-date_created`,
@@ -292,6 +277,7 @@ export const GeofenceManager = React.memo(function GeofenceManager() {
       }
       
       if (!result) {
+        // If all queries fail, try to get all geofences and filter client-side
         debugLog('All queries failed, fetching all geofences');
         result = await fetchData(`${GEOFENCE_API}?limit=-1`);
       }
@@ -301,6 +287,7 @@ export const GeofenceManager = React.memo(function GeofenceManager() {
       const geofenceArray = ensureArray(result);
       debugLog('Geofence array:', geofenceArray);
 
+      // Parse and normalize geofences
       const parsed: Geofence[] = geofenceArray.map((gf: any) => {
         const normalized = {
           ...gf,
@@ -313,6 +300,7 @@ export const GeofenceManager = React.memo(function GeofenceManager() {
         return normalized;
       });
 
+      // Filter by user_id if we fetched all
       const userGeofences = successfulQuery 
         ? parsed 
         : parsed.filter(gf => gf.user_id === userId);
@@ -338,11 +326,12 @@ export const GeofenceManager = React.memo(function GeofenceManager() {
       debugLog('=== FETCHING VEHICLES ===');
       debugLog('User ID:', userId);
       
+      // Try different query formats since the API might expect different parameter formats
       const queries = [
         `${VEHICLE_API}?filter[user_id][_eq]=${userId}`,
         `${VEHICLE_API}?filter[user_id]=${userId}`,
         `${VEHICLE_API}?user_id=${userId}`,
-        VEHICLE_API
+        VEHICLE_API // Fallback: get all vehicles
       ];
       
       let result = null;
@@ -381,24 +370,29 @@ export const GeofenceManager = React.memo(function GeofenceManager() {
       
       debugLog('Raw API response:', result);
 
+      // Handle the response format from the API
       let vehicleArray: Vehicle[] = [];
       
       if (result?.data && Array.isArray(result.data)) {
+        // Format: { data: [...] }
         vehicleArray = result.data;
         debugLog(`Found ${vehicleArray.length} vehicles in 'data' property`);
       } else if (Array.isArray(result)) {
+        // Format: [...]
         vehicleArray = result;
         debugLog(`Found ${vehicleArray.length} vehicles as direct array`);
       } else {
         debugLog('Unexpected response format:', typeof result, result);
       }
 
+      // Log all vehicles before filtering
       debugLog('All vehicles before filtering:', vehicleArray.map(v => ({
         vehicle_id: v.vehicle_id,
         name: v.name,
         user_id: v.user_id
       })));
 
+      // Filter vehicles for current user
       const userVehicles = vehicleArray.filter(v => {
         const vehicleUserId = v.user_id?.toString().toLowerCase().trim();
         const currentUserId = userId.toString().toLowerCase().trim();
@@ -411,6 +405,7 @@ export const GeofenceManager = React.memo(function GeofenceManager() {
 
       debugLog(`=== RESULT: Found ${userVehicles.length} vehicles for user ${userId} ===`);
       
+      // If no vehicles found for user but we have vehicles in array, show warning
       if (userVehicles.length === 0 && vehicleArray.length > 0) {
         debugLog('WARNING: No vehicles found for current user, but found vehicles for other users');
         debugLog('Current user ID:', userId);
@@ -455,64 +450,39 @@ export const GeofenceManager = React.memo(function GeofenceManager() {
     }
   };
 
-  const handleDrawCreated = useCallback((e: DrawCreatedEvent) => {
-    console.log('🎨 Draw event received in GeofenceManager:', e);
-    console.log('Layer type:', e.layerType);
-    console.log('Layer object:', e.layer);
-    console.log('Event type:', e.type);
+  const handleDrawCreated = (e: DrawCreatedEvent) => {
+    console.log('Draw event received:', e);
     
-    // Prevent duplicate processing
-    if (drawnLayers.length > 0) {
-      console.log('⚠️ Layer already exists, skipping duplicate');
-      return;
-    }
-    
+    // Store the layer with all its properties
     const layer = e.layer;
     
-    // Handle circle
+    // If it's a circle, store the original circle info
     if (e.originalType === 'circle' && e.originalRadius && e.originalCenter) {
-      console.log('⭕ Circle detected with radius:', e.originalRadius);
+      // Add the circle properties to the layer object
       layer._isCircle = true;
       layer._circleRadius = e.originalRadius;
       layer._circleCenter = e.originalCenter;
-    } else if (e.layerType === 'circle' && typeof layer.getRadius === 'function') {
-      console.log('⭕ Native circle detected');
-      layer._isCircle = true;
-      layer._circleRadius = layer.getRadius();
-      layer._circleCenter = layer.getLatLng();
     }
     
-    console.log('📦 Storing layer in drawnLayers');
     setDrawnLayers([layer]);
     
     // Determine the type based on what was actually drawn
     let actualType = e.layerType;
-    if (e.originalType === 'circle' || e.layerType === 'circle') {
+    if (e.originalType === 'circle') {
       actualType = 'circle';
     }
     
-    console.log('🔄 Setting geofence type to:', actualType);
+    // Update the geofence type to match what was drawn
     setNewGeofence(prev => ({ 
       ...prev, 
       type: actualType === 'circle' ? 'circle' : 'polygon' 
     }));
     
     toast.success(`${actualType === 'circle' ? 'Circle' : 'Polygon'} drawn successfully`);
-  }, [drawnLayers.length]);
+  };
 
   const handleSaveGeofence = useCallback(async () => {
-    console.log('💾 Starting save geofence process...');
-    console.log('Current user:', currentUser);
-    console.log('New geofence data:', newGeofence);
-    console.log('Drawn layers:', drawnLayers);
-    console.log('Number of drawn layers:', drawnLayers.length);
-    
     if (!currentUser || !newGeofence.name.trim() || drawnLayers.length === 0) {
-      console.error('❌ Validation failed:', {
-        hasUser: !!currentUser,
-        hasName: !!newGeofence.name.trim(),
-        hasLayers: drawnLayers.length > 0
-      });
       toast.error("Please complete all fields and draw a geofence area");
       return;
     }
@@ -522,8 +492,6 @@ export const GeofenceManager = React.memo(function GeofenceManager() {
       const layer = drawnLayers[0];
       const userId = currentUser.id || currentUser.user_id;
       
-      console.log('🔑 User ID:', userId);
-      
       if (!userId) {
         throw new Error("User ID not found");
       }
@@ -531,27 +499,17 @@ export const GeofenceManager = React.memo(function GeofenceManager() {
       let definition: any;
       let geofenceType = newGeofence.type;
 
-      console.log('🎯 Processing layer type:', geofenceType);
-      console.log('Layer properties:', {
-        isCircle: layer._isCircle,
-        hasRadius: !!layer._circleRadius,
-        hasCenter: !!layer._circleCenter,
-        hasGetRadius: typeof layer.getRadius === 'function',
-        hasGetLatLng: typeof layer.getLatLng === 'function',
-        hasGetLatLngs: typeof layer.getLatLngs === 'function'
-      });
-
       // Check if this was originally a circle
       if (layer._isCircle && layer._circleRadius && layer._circleCenter) {
-        console.log('⭕ Processing stored circle');
+        // It's a circle that was converted to polygon
         definition = { 
           type: "Circle", 
           center: [layer._circleCenter.lng, layer._circleCenter.lat], 
           radius: layer._circleRadius 
         };
         geofenceType = 'circle';
-      } else if (typeof layer.getRadius === 'function' && typeof layer.getLatLng === 'function') {
-        console.log('⭕ Processing native circle');
+      } else if (typeof layer.getRadius === 'function') {
+        // It's a native circle
         const center = layer.getLatLng();
         const radius = layer.getRadius();
         definition = { 
@@ -560,62 +518,25 @@ export const GeofenceManager = React.memo(function GeofenceManager() {
           radius: radius 
         };
         geofenceType = 'circle';
-      } else if (typeof layer.getLatLngs === 'function') {
-        console.log('⬜ Processing polygon');
-        const latlngs = layer.getLatLngs();
-        console.log('Raw latlngs:', latlngs);
-        
-        // Handle nested arrays (Leaflet sometimes returns [[latlngs]] for polygons)
-        let coordsArray = latlngs;
-        if (Array.isArray(latlngs[0]) && !latlngs[0].lat) {
-          coordsArray = latlngs[0];
-        }
-        
-        const coords = coordsArray.map((ll: any) => {
-          console.log('Processing point:', ll);
-          return [ll.lng, ll.lat];
-        });
-        
-        console.log('Processed coordinates:', coords);
-        
-        // Close the polygon if not already closed
-        if (coords.length > 0 && 
-            (coords[0][0] !== coords[coords.length - 1][0] || 
-             coords[0][1] !== coords[coords.length - 1][1])) {
-          coords.push([...coords[0]]);
-          console.log('Closed polygon by adding first point at end');
-        }
-        
-        definition = { 
-          type: "Polygon", 
-          coordinates: [coords] 
-        };
-        geofenceType = 'polygon';
-      } else if (layer._latlngs) {
-        console.log('⬜ Processing polygon from _latlngs property');
-        const latlngs = layer._latlngs;
-        let coordsArray = Array.isArray(latlngs[0]) && !latlngs[0].lat ? latlngs[0] : latlngs;
-        
-        const coords = coordsArray.map((ll: any) => [ll.lng, ll.lat]);
-        
-        // Close the polygon if not already closed
-        if (coords.length > 0 && 
-            (coords[0][0] !== coords[coords.length - 1][0] || 
-             coords[0][1] !== coords[coords.length - 1][1])) {
-          coords.push([...coords[0]]);
-        }
-        
-        definition = { 
-          type: "Polygon", 
-          coordinates: [coords] 
-        };
-        geofenceType = 'polygon';
       } else {
-        throw new Error("Unable to determine layer type or extract coordinates");
+        // It's a polygon
+        const latlngs = layer.getLatLngs ? layer.getLatLngs() : layer._latlngs;
+        const coords = (Array.isArray(latlngs[0]) ? latlngs[0] : latlngs)
+          .map((ll: any) => [ll.lng, ll.lat]);
+        
+        // Close the polygon if not already closed
+        if (coords.length > 0 && 
+            (coords[0][0] !== coords[coords.length - 1][0] || 
+             coords[0][1] !== coords[coords.length - 1][1])) {
+          coords.push([...coords[0]]);
+        }
+        
+        definition = { 
+          type: "Polygon", 
+          coordinates: [coords] 
+        };
+        geofenceType = 'polygon';
       }
-
-      console.log('📐 Final definition:', definition);
-      console.log('📐 Final type:', geofenceType);
 
       const payload = {
         user_id: userId,
@@ -627,46 +548,30 @@ export const GeofenceManager = React.memo(function GeofenceManager() {
         date_created: new Date().toISOString()
       };
 
-      console.log('📤 Saving geofence with payload:', payload);
+      console.log('Saving geofence with payload:', payload);
 
       const saveResult = await fetchData(GEOFENCE_API, { 
         method: 'POST', 
         body: JSON.stringify(payload) 
       });
 
-      console.log('✅ Save result:', saveResult);
+      console.log('Save result:', saveResult);
       
-      if (!saveResult) {
-        throw new Error('No response from server');
-      }
-
       toast.success("Geofence saved successfully!");
 
-      // Get the created geofence data
-      const createdGeofence = saveResult.data || saveResult;
-      
       // Emit geofence created event
-      if (createdGeofence) {
-        console.log('📢 Emitting geofence created event');
-        geofenceEvents.emitGeofenceCreated(createdGeofence);
-      }
+      geofenceEvents.emitGeofenceCreated(saveResult?.data || saveResult);
 
       setIsCreating(false);
       setDrawnLayers([]);
-      setNewGeofence({ name: "", ruleType: "FORBIDDEN", type: "polygon" });
       
       // Force refresh data after a short delay
       setTimeout(() => {
-        console.log('🔄 Refreshing data...');
         refreshData(userId);
       }, 500);
       
     } catch (error: any) {
-      console.error('❌ Error saving geofence:', error);
-      console.error('Error details:', {
-        message: error.message,
-        stack: error.stack
-      });
+      console.error('Error saving geofence:', error);
       toast.error(`Failed to save geofence: ${error.message}`);
     } finally {
       setLoading(false);
@@ -678,6 +583,7 @@ export const GeofenceManager = React.memo(function GeofenceManager() {
 
     setLoading(true);
     try {
+      // Unassign vehicles first
       const assignedVehicles = vehicles.filter(v => 
         v.geofence_id?.toString() === geofenceId.toString()
       );
@@ -691,17 +597,14 @@ export const GeofenceManager = React.memo(function GeofenceManager() {
         )
       );
 
+      // Delete geofence
       await fetchData(`${GEOFENCE_API}/${geofenceId}`, { 
         method: 'DELETE' 
       });
       
       toast.success("Geofence deleted successfully");
 
-      if (currentGeofence?.geofence_id === geofenceId) {
-        setCurrentGeofence(null);
-      }
-
-      console.log('🗑️ Emitting geofence deleted event from GeofenceManager');
+      // Emit geofence deleted event untuk refresh dashboard
       geofenceEvents.emitGeofenceDeleted(geofenceId);
 
       const userId = currentUser?.id || currentUser?.user_id;
@@ -714,7 +617,7 @@ export const GeofenceManager = React.memo(function GeofenceManager() {
     } finally {
       setLoading(false);
     }
-  }, [vehicles, fetchData, refreshData, currentUser, currentGeofence]);
+  }, [vehicles, fetchData, refreshData, currentUser]);
 
   const handleAssignVehicles = (geofence: Geofence) => {
     setCurrentGeofence(geofence);
@@ -755,6 +658,7 @@ export const GeofenceManager = React.memo(function GeofenceManager() {
 
       toast.success('Vehicle assignments updated successfully');
       
+      // Emit geofence updated event jika ada perubahan assignment
       if (toAdd.length > 0 || toRemove.length > 0) {
         geofenceEvents.emitGeofenceUpdated(currentGeofence);
       }
@@ -983,31 +887,6 @@ export const GeofenceManager = React.memo(function GeofenceManager() {
                   </Button>
                 </div>
 
-                {/* Drawing Instructions */}
-                <div className="bg-blue-100 border border-blue-300 rounded-lg p-3 text-sm">
-                  <p className="font-semibold text-blue-800 mb-1">📍 How to draw:</p>
-                  <ul className="text-blue-700 space-y-1">
-                    {newGeofence.type === "polygon" ? (
-                      <>
-                        <li>• Click on the map to add points</li>
-                        <li>• Click the first point to close the polygon</li>
-                        <li>• Or click "Finish" button when done</li>
-                      </>
-                    ) : (
-                      <>
-                        <li>• Click on the map to set center</li>
-                        <li>• Drag to set the radius</li>
-                        <li>• Release to complete the circle</li>
-                      </>
-                    )}
-                  </ul>
-                  {drawnLayers.length > 0 && (
-                    <p className="mt-2 text-green-700 font-semibold">
-                      ✅ Shape drawn! Click Save to continue.
-                    </p>
-                  )}
-                </div>
-
                 <div className="flex gap-2 pt-3 border-t border-blue-200">
                   <Button
                     onClick={handleSaveGeofence}
@@ -1134,7 +1013,6 @@ export const GeofenceManager = React.memo(function GeofenceManager() {
         {/* Map */}
         <div className="lg:col-span-2 border border-slate-200 rounded-2xl overflow-hidden shadow-2xl bg-white/90 min-h-[300px]">
           <MapWithDrawing
-            key={`map-${isCreating}-${currentGeofence?.geofence_id || 'none'}`}
             center={getGeofenceCenter(isCreating ? null : currentGeofence)}
             zoom={isCreating ? 5 : (currentGeofence ? 13 : 5)}
             drawMode={isCreating ? newGeofence.type : undefined}
@@ -1219,6 +1097,4 @@ export const GeofenceManager = React.memo(function GeofenceManager() {
       </Dialog>
     </div>
   );
-});
-
-export default GeofenceManager;
+}

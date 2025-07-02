@@ -461,12 +461,6 @@ export const GeofenceManager = React.memo(function GeofenceManager() {
     console.log('Layer object:', e.layer);
     console.log('Event type:', e.type);
     
-    // Prevent duplicate processing
-    if (drawnLayers.length > 0) {
-      console.log('⚠️ Layer already exists, skipping duplicate');
-      return;
-    }
-    
     const layer = e.layer;
     
     // Handle circle
@@ -498,7 +492,7 @@ export const GeofenceManager = React.memo(function GeofenceManager() {
     }));
     
     toast.success(`${actualType === 'circle' ? 'Circle' : 'Polygon'} drawn successfully`);
-  }, [drawnLayers.length]);
+  }, []);
 
   const handleSaveGeofence = useCallback(async () => {
     console.log('💾 Starting save geofence process...');

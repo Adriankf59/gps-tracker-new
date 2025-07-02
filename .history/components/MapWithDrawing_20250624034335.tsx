@@ -86,7 +86,24 @@ export default function MapWithDrawing({
     }
   };
 
-  // Geofence utilities
+  // Convert circle to polygon for consistent storage
+  const circleToPolygon = (center: L.LatLng, radius: number, numberOfSides: number = 64): L.LatLng[] => {
+    const points: L.LatLng[] = [];
+    const angleStep = (2 * Math.PI) / numberOfSides;
+    
+    for (let i = 0; i < numberOfSides; i++) {
+      const angle = i * angleStep;
+      const lat = center.lat + (radius / 111000) * Math.cos(angle);
+      const lng = center.lng + (radius / (111000 * Math.cos(center.lat * Math.PI / 180))) * Math.sin(angle);
+      points.push(L.latLng(lat, lng));
+    }
+    
+    // Close the polygon
+    points.push(points[0]);
+    return points;
+  };
+
+  // Geofence utilities - moved outside to be accessible everywhere
   function getGeofenceBounds(gf: Geofence): L.LatLngBounds | null {
     if (!gf || !gf.definition) return null;
     try {
@@ -216,8 +233,7 @@ export default function MapWithDrawing({
           isSelected: boolean;
         }
 
-        // Memoize GeofenceDisplay component
-        const GeofenceDisplay = React.memo(function GeofenceDisplay({ geofenceItem, isSelected }: GeofenceDisplayProps) {
+        function GeofenceDisplay({ geofenceItem, isSelected }: GeofenceDisplayProps) {
           if (!geofenceItem?.definition) return null;
           
           const color = getRuleTypeColor(geofenceItem.rule_type);
@@ -266,7 +282,7 @@ export default function MapWithDrawing({
             console.error(`❌ Error rendering geofence ${geofenceItem.geofence_id}:`, err);
           }
           return null;
-        });
+        }
 
         // Custom Draw Control that manages Leaflet Draw directly
         interface DrawControlWrapperProps {
@@ -278,7 +294,7 @@ export default function MapWithDrawing({
           viewOnly: boolean;
         }
 
-        const DrawControlWrapper = React.memo(function DrawControlWrapper({
+        function DrawControlWrapper({
           drawMode: currentDrawMode,
           onCreated,
           onEdited,
@@ -289,29 +305,19 @@ export default function MapWithDrawing({
           const map = reactLeaflet.useMap();
           const featureGroupLocal = useRef<L.FeatureGroup | null>(null);
           const drawControlLocal = useRef<L.Control.Draw | null>(null);
-          const hasSetupEvents = useRef(false);
-          const isInitialized = useRef(false);
           
           useEffect(() => {
-            if (!map || isViewOnly) {
-              return;
-            }
+            if (!map || isViewOnly) return;
 
             // Create feature group if it doesn't exist
             if (!featureGroupLocal.current) {
               featureGroupLocal.current = L.featureGroup().addTo(map);
               featureGroupRef.current = featureGroupLocal.current;
+              console.log('✅ FeatureGroup created and added to map');
             }
 
             // Setup draw control
-            if (currentlyCreating && !drawControlLocal.current && !isInitialized.current) {
-              isInitialized.current = true;
-              
-              // Prevent recreating if already exists
-              if (featureGroupLocal.current && !featureGroupLocal.current._map) {
-                featureGroupLocal.current.addTo(map);
-              }
-              
+            if (currentlyCreating && !drawControlLocal.current) {
               const drawOptions = {
                 position: 'topright' as L.ControlPosition,
                 draw: {
@@ -361,233 +367,57 @@ export default function MapWithDrawing({
               drawControlLocal.current = new L.Control.Draw(drawOptions);
               map.addControl(drawControlLocal.current);
               drawControlRef.current = drawControlLocal.current;
-              
               console.log('✅ Draw control added to map');
-              console.log('📋 Draw options:', drawOptions);
-              
-              // Setup event handlers - use both string and L.Draw.Event formats
-              const handleCreatedEvent = (e: any) => {
-                console.log('🎨 DRAW CREATED EVENT FIRED in MapWithDrawing!');
-                console.log('Event type:', e.layerType);
-                console.log('Event layer:', e.layer);
+
+              // Setup event handlers
+              map.on(L.Draw.Event.CREATED, (e: any) => {
+                console.log('🎨 Shape created:', e.layerType, e.layer);
                 
-                // Skip if layer is already in feature group
-                let alreadyExists = false;
-                if (featureGroupLocal.current) {
-                  featureGroupLocal.current.eachLayer((existingLayer: any) => {
-                    if (existingLayer === e.layer) {
-                      alreadyExists = true;
+                // Log the raw layer object
+                console.log('Layer object keys:', Object.keys(e.layer));
+                console.log('Layer prototype:', Object.getPrototypeOf(e.layer));
+                
+                if (e.layerType === 'circle') {
+                  const circle = e.layer;
+                  const center = circle.getLatLng();
+                  const radius = circle.getRadius();
+                  
+                  e.originalType = 'circle';
+                  e.originalRadius = radius;
+                  e.originalCenter = center;
+                  
+                  console.log('Circle center:', center);
+                  console.log('Circle radius:', radius);
+                } else if (e.layerType === 'polygon') {
+                  const polygon = e.layer;
+                  console.log('Polygon layer:', polygon);
+                  
+                  // Try to get coordinates
+                  if (polygon.getLatLngs) {
+                    const latlngs = polygon.getLatLngs();
+                    console.log('Polygon coordinates from getLatLngs():', latlngs);
+                    e.polygonCoordinates = latlngs;
+                  }
+                  
+                  // Also check _latlngs property
+                  if (polygon._latlngs) {
+                    console.log('Polygon coordinates from _latlngs:', polygon._latlngs);
+                  }
+                  
+                  // Check other properties that might contain coordinates
+                  ['_rings', '_originalPoints', 'editing', '_coords'].forEach(prop => {
+                    if (polygon[prop]) {
+                      console.log(`Polygon ${prop}:`, polygon[prop]);
                     }
                   });
                 }
                 
-                if (!alreadyExists) {
-                  console.log('Layer has getRadius:', typeof e.layer.getRadius === 'function');
-                  console.log('Layer has getLatLng:', typeof e.layer.getLatLng === 'function');
-                  console.log('Layer has getLatLngs:', typeof e.layer.getLatLngs === 'function');
-                  
-                  if (e.layerType === 'circle') {
-                    const circle = e.layer;
-                    const center = circle.getLatLng();
-                    const radius = circle.getRadius();
-                    
-                    e.originalType = 'circle';
-                    e.originalRadius = radius;
-                    e.originalCenter = center;
-                    
-                    console.log('Circle details:', { center, radius });
-                  } else if (e.layerType === 'polygon') {
-                    const polygon = e.layer;
-                    
-                    // Try to get coordinates
-                    if (polygon.getLatLngs) {
-                      const latlngs = polygon.getLatLngs();
-                      e.polygonCoordinates = latlngs;
-                      console.log('Polygon coordinates:', latlngs);
-                    }
-                  }
-                  
-                  if (featureGroupLocal.current) {
-                    featureGroupLocal.current.addLayer(e.layer);
-                    console.log('✅ Layer added to feature group');
-                  }
-                  
-                  if (onCreated) {
-                    console.log('🔥 Calling onCreated callback');
-                    onCreated(e);
-                  } else {
-                    console.log('⚠️ No onCreated callback provided!');
-                  }
-                } else {
-                  console.log('⚠️ Layer already exists in feature group, skipping');
-                }
-              };
-              
-              // Attach events to map instead of just listening
-              if (!hasSetupEvents.current) {
-                hasSetupEvents.current = true;
-                
-                // Try multiple event binding methods
-                map.on(L.Draw.Event.CREATED, handleCreatedEvent);
-                map.on('draw:created', handleCreatedEvent);
-                
-                // Also attach to the draw control itself
-                map.on('draw:drawstart', (e) => {
-                  console.log('📐 Draw started', e);
-                });
-                
-                map.on('draw:drawstop', (e) => {
-                  console.log('🛑 Draw stopped', e);
-                });
-                
-                map.on('draw:drawvertex', (e) => {
-                  console.log('📍 Vertex added', e);
-                });
-                
-                // Additional event for polygon completion
-                map.on('draw:editstop', (e) => {
-                  console.log('✏️ Edit stopped', e);
-                });
-                
-                // Additional handler for polygon/circle completion
-                const polygonHandler = new (L as any).Draw.Polygon(map, drawOptions.draw.polygon || {});
-                const circleHandler = new (L as any).Draw.Circle(map, drawOptions.draw.circle || {});
-                
-                // Override the default complete action
-                if (currentDrawMode === 'polygon' && polygonHandler) {
-                  const originalCompleteShape = polygonHandler.completeShape;
-                  polygonHandler.completeShape = function() {
-                    console.log('🎯 Polygon completeShape triggered');
-                    if (this._poly) {
-                      const latlngs = this._poly.getLatLngs()[0];
-                      if (latlngs && latlngs.length >= 3) {
-                        // Create the layer manually
-                        const polygon = L.polygon(latlngs, this.options.shapeOptions);
-                        
-                        // Trigger the created event
-                        const createdEvent = {
-                          layer: polygon,
-                          layerType: 'polygon',
-                          type: 'draw:created',
-                          target: map,
-                          sourceTarget: map
-                        };
-                        
-                        console.log('🔥 Manually triggering draw:created for polygon');
-                        handleCreatedEvent(createdEvent);
-                        
-                        // Clean up the drawing
-                        this.disable();
-                      }
-                    }
-                    // Call original if needed
-                    if (originalCompleteShape) {
-                      originalCompleteShape.call(this);
-                    }
-                  };
+                if (featureGroupLocal.current) {
+                  featureGroupLocal.current.addLayer(e.layer);
                 }
                 
-                // Listen for all layer additions during drawing
-                map.on('layeradd', (e: any) => {
-                  if (currentlyCreating && e.layer && e.layer._latlngs && !e.layer._isProcessed) {
-                    console.log('🎨 Layer added during creation mode');
-                    
-                    // Check if this is from draw toolbar
-                    const toolbar = document.querySelector('.leaflet-draw-toolbar');
-                    if (toolbar && toolbar.classList.contains('leaflet-draw-toolbar-top')) {
-                      return; // Skip toolbar layers
-                    }
-                    
-                    // Mark as processed
-                    e.layer._isProcessed = true;
-                    
-                    // Small delay to ensure drawing is complete
-                    setTimeout(() => {
-                      if (e.layer._latlngs && e.layer._latlngs[0] && e.layer._latlngs[0].length >= 3) {
-                        const createdEvent = {
-                          layer: e.layer,
-                          layerType: 'polygon',
-                          type: 'draw:created',
-                          target: map,
-                          sourceTarget: map
-                        };
-                        
-                        console.log('🎯 Triggering draw:created from layeradd');
-                        handleCreatedEvent(createdEvent);
-                      }
-                    }, 100);
-                  }
-                });
-                
-                // Listen for edit events
-                if (onEdited) {
-                  map.on(L.Draw.Event.EDITED, onEdited);
-                  map.on('draw:edited', onEdited);
-                }
-
-                if (onDeleted) {
-                  map.on(L.Draw.Event.DELETED, onDeleted);
-                  map.on('draw:deleted', onDeleted);
-                }
-                
-                console.log('✅ All draw event listeners attached');
-                
-                // Force trigger draw mode if needed
-                setTimeout(() => {
-                  if (currentDrawMode === 'polygon') {
-                    const polygonButton = document.querySelector('.leaflet-draw-draw-polygon');
-                    if (polygonButton && polygonButton instanceof HTMLElement) {
-                      console.log('🖱️ Auto-clicking polygon button');
-                      polygonButton.click();
-                    }
-                  } else if (currentDrawMode === 'circle') {
-                    const circleButton = document.querySelector('.leaflet-draw-draw-circle');
-                    if (circleButton && circleButton instanceof HTMLElement) {
-                      console.log('🖱️ Auto-clicking circle button');
-                      circleButton.click();
-                    }
-                  }
-                }, 500);
-                // Also monitor draw toolbar state changes
-                const monitorToolbar = setInterval(() => {
-                  const toolbar = document.querySelector('.leaflet-draw-toolbar-actions');
-                  if (toolbar && toolbar.style.display !== 'none') {
-                    // Drawing is in progress
-                    const finishButton = toolbar.querySelector('a[title="Finish drawing"]');
-                    const cancelButton = toolbar.querySelector('a[title="Cancel drawing"]');
-                    
-                    if (finishButton && !finishButton.hasAttribute('data-listener-added')) {
-                      finishButton.setAttribute('data-listener-added', 'true');
-                      finishButton.addEventListener('click', (e) => {
-                        console.log('🏁 Finish button clicked');
-                        // Small delay to let the shape complete
-                        setTimeout(() => {
-                          // Find the newly created layer
-                          map.eachLayer((layer: any) => {
-                            if (layer instanceof L.Polygon && !layer._processed && layer._latlngs) {
-                              layer._processed = true;
-                              const createdEvent = {
-                                layer: layer,
-                                layerType: 'polygon',
-                                type: 'draw:created',
-                                target: map,
-                                sourceTarget: map
-                              };
-                              console.log('🎯 Creating polygon from finish button');
-                              handleCreatedEvent(createdEvent);
-                            }
-                          });
-                        }, 100);
-                      });
-                    }
-                  }
-                }, 100);
-                
-                // Clean up interval on unmount
-                return () => {
-                  clearInterval(monitorToolbar);
-                };
-              }
+                if (onCreated) onCreated(e);
+              });
 
               if (onEdited) {
                 map.on(L.Draw.Event.EDITED, onEdited);
@@ -598,18 +428,10 @@ export default function MapWithDrawing({
               }
             } else if (!currentlyCreating && drawControlLocal.current) {
               // Remove draw control when not creating
-              
-              // Remove event listeners first
-              map.off(L.Draw.Event.CREATED);
-              map.off('draw:created');
-              
-              // Then remove control
-              if (map.hasLayer(drawControlLocal.current)) {
-                map.removeControl(drawControlLocal.current);
-              }
+              map.removeControl(drawControlLocal.current);
               drawControlLocal.current = null;
               drawControlRef.current = null;
-              hasSetupEvents.current = false; // Reset this flag
+              console.log('✅ Draw control removed from map');
             }
 
             return () => {
@@ -621,19 +443,15 @@ export default function MapWithDrawing({
                 map.removeLayer(featureGroupLocal.current);
               }
               
-              // Remove all event listeners
+              // Remove event listeners
               map.off(L.Draw.Event.CREATED);
-              map.off('draw:created');
               map.off(L.Draw.Event.EDITED);
               map.off(L.Draw.Event.DELETED);
-              map.off('draw:drawstop');
-              map.off('draw:editstop');
-              map.off('layeradd');
             };
           }, [map, currentlyCreating, isViewOnly, currentDrawMode, onCreated, onEdited, onDeleted]);
 
           return null;
-        });
+        }
 
         interface MapControllerProps {
           center: [number, number] | null;
@@ -675,6 +493,7 @@ export default function MapWithDrawing({
             
             if (onMapReady) {
               onMapReady(map);
+              console.log('🗺️ Map ready callback executed');
             }
             
             return () => {
@@ -713,15 +532,22 @@ export default function MapWithDrawing({
               setTimeout(() => {
                 programmaticMoveRef.current = false;
               }, 100);
+              
+              console.log('🎯 Map view set:', { 
+                center: validatedCenter, 
+                zoom: finalZoom, 
+                isCreating,
+                reason: hasInitialized.current ? 'mode change to create' : 'initial'
+              });
             }
             
             lastIsCreating.current = isCreating;
-          }, [currentCenter, currentZoom, map]);
+          }, [currentCenter, currentZoom, map, isCreating]);
 
           return null;
         }
 
-        // Reset View Button component
+        // Reset View Button component - Main way to center map to selected geofence
         interface ResetViewButtonProps {
           selectedGeofence: Geofence | null;
           isCreating: boolean;
@@ -822,61 +648,6 @@ export default function MapWithDrawing({
     };
   }, [onMapReady]);
 
-  // Memoize geofences to avoid unnecessary renders
-  const memoizedGeofences = useMemo(() => {
-    if (!isCreating && selectedGeofence && validateCoordinates(getGeofenceCenter(selectedGeofence))) {
-      return [selectedGeofence];
-    }
-    
-    if (!viewOnly && geofences) {
-      return geofences.filter(gf => {
-        if (!selectedGeofence || gf.geofence_id !== selectedGeofence.geofence_id) {
-          return validateCoordinates(getGeofenceCenter(gf));
-        }
-        return false;
-      });
-    }
-    
-    if (viewOnly && geofence && validateCoordinates(getGeofenceCenter(geofence))) {
-      if (!selectedGeofence || geofence.geofence_id !== selectedGeofence.geofence_id) {
-        return [geofence];
-      }
-    }
-    
-    return [];
-  }, [isCreating, selectedGeofence, viewOnly, geofences, geofence]);
-
-  // Setup map event handlers for draw events
-  useEffect(() => {
-    if (!mapRef.current || !isCreating || !onDrawCreated) return;
-
-    const map = mapRef.current;
-    
-    // Handler for draw:created event
-    const handleDrawCreated = (e: any) => {
-      console.log('🎨 Draw created event captured in main component');
-      
-      // Add layer to feature group if needed
-      if (featureGroupRef.current && e.layer) {
-        featureGroupRef.current.addLayer(e.layer);
-      }
-      
-      // Call the callback
-      if (onDrawCreated) {
-        onDrawCreated(e);
-      }
-    };
-
-    // Add event listener
-    map.on('draw:created', handleDrawCreated);
-    map.on(L.Draw.Event.CREATED, handleDrawCreated);
-
-    return () => {
-      map.off('draw:created', handleDrawCreated);
-      map.off(L.Draw.Event.CREATED, handleDrawCreated);
-    };
-  }, [isCreating, onDrawCreated]);
-
   if (error) {
     return (
       <div className="h-full flex items-center justify-center bg-red-50 p-4 rounded-md border border-red-200">
@@ -925,25 +696,34 @@ export default function MapWithDrawing({
 
         {/* Geofences Display */}
         <FeatureGroup ref={displayLayersRef}>
-          {selectedGeofence && !isCreating && (
+          {!isCreating && selectedGeofence && validateCoordinates(getGeofenceCenter(selectedGeofence)) && (
             <GeofenceDisplay
-              key={`selected-${selectedGeofence.geofence_id}`}
+              key={`selected-${selectedGeofence.geofence_id}-${Date.now()}`}
               geofenceItem={selectedGeofence}
               isSelected={true}
             />
           )}
-          {memoizedGeofences.map(gf => (
+          {!viewOnly && geofences && geofences.filter(gf => !selectedGeofence || gf.geofence_id !== selectedGeofence.geofence_id).map(gf => {
+            if (!validateCoordinates(getGeofenceCenter(gf))) return null;
+            return (
+              <GeofenceDisplay
+                key={`all-${gf.geofence_id}-${Date.now()}`}
+                geofenceItem={gf}
+                isSelected={false}
+              />
+            );
+          })}
+          {viewOnly && geofence && validateCoordinates(getGeofenceCenter(geofence)) && (!selectedGeofence || geofence.geofence_id !== selectedGeofence.geofence_id) && (
             <GeofenceDisplay
-              key={`geofence-${gf.geofence_id}`}
-              geofenceItem={gf}
-              isSelected={selectedGeofence?.geofence_id === gf.geofence_id}
+              key={`single-view-${geofence.geofence_id}`}
+              geofenceItem={geofence}
+              isSelected={true}
             />
-          ))}
+          )}
         </FeatureGroup>
 
         {/* Drawing Controls */}
         <DrawControl
-          key={`draw-control-${isCreating}-${drawMode}`}
           drawMode={drawMode}
           onCreated={onDrawCreated}
           onEdited={onDrawEdited}

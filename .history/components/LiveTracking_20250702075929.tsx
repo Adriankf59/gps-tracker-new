@@ -40,7 +40,7 @@ const MapComponent = dynamic(() => import('./MapComponent').catch(() => ({ defau
 const WS_URL = process.env.NEXT_PUBLIC_WS_URL || 'wss://vehitrack.my.id/websocket';
 const RECONNECT_INTERVAL = 5000;
 const PING_INTERVAL = 30000;
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://vehitrack.my.id/directus';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://vehitrack.my.id/directus';
 
 // Types
 interface ProjectGeofence {

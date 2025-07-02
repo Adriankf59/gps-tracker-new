@@ -54,8 +54,8 @@ import {
 import { geofenceEvents } from '@/lib/events/geofenceEvents';
 
 // Constants
-const WS_URL = process.env.NEXT_PUBLIC_WS_URL || 'wss://vehitrack.my.id/websocket';
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://vehitrack.my.id/directus';
+const WS_URL = process.env.NEXT_PUBLIC_WS_URL || 'ws://vehitrack.my.id/websocket';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://vehitrack.my.id/directus';
 const RECONNECT_INTERVAL = 5000;
 const PING_INTERVAL = 30000;
 
@@ -933,8 +933,6 @@ const useWebSocketWithGeofence = (userId?: string, user?: User | null) => {
   }, []);
 
   useEffect(() => {
-    if (!userId) return;
-    
     loadInitialData();
     const connectTimeout = setTimeout(() => {
       connect();
@@ -944,7 +942,7 @@ const useWebSocketWithGeofence = (userId?: string, user?: User | null) => {
       clearTimeout(connectTimeout);
       disconnect();
     };
-  }, [userId]); // Remove other deps to prevent infinite loop
+  }, [userId, connect, disconnect, loadInitialData]);
 
   // Expose checkGeofenceViolations for debug
   const exposedCheckGeofenceViolations = checkGeofenceViolations;
@@ -1013,10 +1011,8 @@ const DashboardPage = () => {
     const handleGeofenceDeleted = (geofenceId: number) => {
       console.log('📡 Dashboard: Geofence deleted event received:', geofenceId);
       
-      // Use callback to get latest state
-      if (removeGeofenceById) {
-        removeGeofenceById(geofenceId);
-      }
+      // Remove geofence from detector immediately
+      removeGeofenceById(geofenceId);
       
       // Update geofences state locally untuk immediate update
       setGeofences(prev => {
@@ -1025,7 +1021,7 @@ const DashboardPage = () => {
         return filtered;
       });
       
-      // Reset vehicle geofence states
+      // Reset vehicle geofence states in detector for affected vehicles
       vehicles.forEach(vehicle => {
         if (vehicle.geofence_id?.toString() === geofenceId.toString()) {
           console.log(`🔄 Resetting geofence state for vehicle ${vehicle.name}`);
@@ -1036,13 +1032,10 @@ const DashboardPage = () => {
       });
       
       // Clear active geofence alert if it's from deleted geofence
-      setActiveGeofenceAlert(prev => {
-        if (prev && prev.geofence_id === geofenceId) {
-          console.log('🚨 Clearing active alert from deleted geofence');
-          return null;
-        }
-        return prev;
-      });
+      if (activeGeofenceAlert && activeGeofenceAlert.geofence_id === geofenceId) {
+        console.log('🚨 Clearing active alert from deleted geofence');
+        setActiveGeofenceAlert(null);
+      }
       
       // Refresh data dari API
       if (loadInitialData) {
@@ -1067,9 +1060,7 @@ const DashboardPage = () => {
             ? JSON.parse(geofence.definition) 
             : geofence.definition
         };
-        if (addOrUpdateGeofence) {
-          addOrUpdateGeofence(processedGeofence);
-        }
+        addOrUpdateGeofence(processedGeofence);
         
         // Update local state
         setGeofences(prev => {
@@ -1105,9 +1096,9 @@ const DashboardPage = () => {
             : geofence.definition
         };
         
-        if (geofence.status === 'active' && addOrUpdateGeofence) {
+        if (geofence.status === 'active') {
           addOrUpdateGeofence(processedGeofence);
-        } else if (removeGeofenceById) {
+        } else {
           removeGeofenceById(geofence.geofence_id);
         }
         
@@ -1148,9 +1139,15 @@ const DashboardPage = () => {
       unsubscribeUpdated();
     };
   }, [
-    user?.id,
-    user?.user_id,
-    vehicles.length // Only track vehicles length, not the array itself
+    user, 
+    vehicles, 
+    loadInitialData, 
+    resetVehicleStateInDetector, 
+    activeGeofenceAlert, 
+    setActiveGeofenceAlert,
+    removeGeofenceById,
+    addOrUpdateGeofence,
+    setGeofences
   ]);
 
   // Initial geofence check when data is loaded
@@ -1223,7 +1220,7 @@ const DashboardPage = () => {
     });
     
     console.log('✅ Initial geofence check completed');
-  }, [vehicles.length, vehicleData.length, geofences.length]); // Remove function deps
+  }, [vehicles.length, vehicleData.length, geofences.length, resetVehicleStateInDetector, checkGeofenceViolations]);
 
   // Monitor geofences loaded
   useEffect(() => {
@@ -1234,7 +1231,7 @@ const DashboardPage = () => {
         console.log(`- ${gf.name} (ID: ${gf.geofence_id}, Type: ${gf.type}, Rule: ${gf.rule_type}, Status: ${gf.status})`);
       });
     }
-  }, [geofences.length]); // Remove geofences from deps
+  }, [geofences.length, geofences]);
 
   // Debug helpers
   useEffect(() => {

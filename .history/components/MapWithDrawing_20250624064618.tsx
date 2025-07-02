@@ -370,56 +370,41 @@ export default function MapWithDrawing({
                 console.log('🎨 DRAW CREATED EVENT FIRED in MapWithDrawing!');
                 console.log('Event type:', e.layerType);
                 console.log('Event layer:', e.layer);
+                console.log('Layer has getRadius:', typeof e.layer.getRadius === 'function');
+                console.log('Layer has getLatLng:', typeof e.layer.getLatLng === 'function');
+                console.log('Layer has getLatLngs:', typeof e.layer.getLatLngs === 'function');
                 
-                // Skip if layer is already in feature group
-                let alreadyExists = false;
-                if (featureGroupLocal.current) {
-                  featureGroupLocal.current.eachLayer((existingLayer: any) => {
-                    if (existingLayer === e.layer) {
-                      alreadyExists = true;
-                    }
-                  });
+                if (e.layerType === 'circle') {
+                  const circle = e.layer;
+                  const center = circle.getLatLng();
+                  const radius = circle.getRadius();
+                  
+                  e.originalType = 'circle';
+                  e.originalRadius = radius;
+                  e.originalCenter = center;
+                  
+                  console.log('Circle details:', { center, radius });
+                } else if (e.layerType === 'polygon') {
+                  const polygon = e.layer;
+                  
+                  // Try to get coordinates
+                  if (polygon.getLatLngs) {
+                    const latlngs = polygon.getLatLngs();
+                    e.polygonCoordinates = latlngs;
+                    console.log('Polygon coordinates:', latlngs);
+                  }
                 }
                 
-                if (!alreadyExists) {
-                  console.log('Layer has getRadius:', typeof e.layer.getRadius === 'function');
-                  console.log('Layer has getLatLng:', typeof e.layer.getLatLng === 'function');
-                  console.log('Layer has getLatLngs:', typeof e.layer.getLatLngs === 'function');
-                  
-                  if (e.layerType === 'circle') {
-                    const circle = e.layer;
-                    const center = circle.getLatLng();
-                    const radius = circle.getRadius();
-                    
-                    e.originalType = 'circle';
-                    e.originalRadius = radius;
-                    e.originalCenter = center;
-                    
-                    console.log('Circle details:', { center, radius });
-                  } else if (e.layerType === 'polygon') {
-                    const polygon = e.layer;
-                    
-                    // Try to get coordinates
-                    if (polygon.getLatLngs) {
-                      const latlngs = polygon.getLatLngs();
-                      e.polygonCoordinates = latlngs;
-                      console.log('Polygon coordinates:', latlngs);
-                    }
-                  }
-                  
-                  if (featureGroupLocal.current) {
-                    featureGroupLocal.current.addLayer(e.layer);
-                    console.log('✅ Layer added to feature group');
-                  }
-                  
-                  if (onCreated) {
-                    console.log('🔥 Calling onCreated callback');
-                    onCreated(e);
-                  } else {
-                    console.log('⚠️ No onCreated callback provided!');
-                  }
+                if (featureGroupLocal.current) {
+                  featureGroupLocal.current.addLayer(e.layer);
+                  console.log('✅ Layer added to feature group');
+                }
+                
+                if (onCreated) {
+                  console.log('🔥 Calling onCreated callback');
+                  onCreated(e);
                 } else {
-                  console.log('⚠️ Layer already exists in feature group, skipping');
+                  console.log('⚠️ No onCreated callback provided!');
                 }
               };
               
@@ -449,73 +434,32 @@ export default function MapWithDrawing({
                   console.log('✏️ Edit stopped', e);
                 });
                 
-                // Additional handler for polygon/circle completion
-                const polygonHandler = new (L as any).Draw.Polygon(map, drawOptions.draw.polygon || {});
-                const circleHandler = new (L as any).Draw.Circle(map, drawOptions.draw.circle || {});
-                
-                // Override the default complete action
-                if (currentDrawMode === 'polygon' && polygonHandler) {
-                  const originalCompleteShape = polygonHandler.completeShape;
-                  polygonHandler.completeShape = function() {
-                    console.log('🎯 Polygon completeShape triggered');
-                    if (this._poly) {
-                      const latlngs = this._poly.getLatLngs()[0];
-                      if (latlngs && latlngs.length >= 3) {
-                        // Create the layer manually
-                        const polygon = L.polygon(latlngs, this.options.shapeOptions);
+                // Force handle creation on drawstop if layer exists
+                map.on('draw:drawstop', (e: any) => {
+                  console.log('🛑 Draw stopped - checking for completed shape', e);
+                  
+                  // Check if there's a completed layer in the feature group
+                  if (featureGroupLocal.current) {
+                    featureGroupLocal.current.eachLayer((layer: any) => {
+                      console.log('Found layer in feature group:', layer);
+                      
+                      // Check if this is a new layer that hasn't been processed
+                      if (!layer._processed) {
+                        layer._processed = true;
                         
-                        // Trigger the created event
-                        const createdEvent = {
-                          layer: polygon,
-                          layerType: 'polygon',
+                        // Create a synthetic draw:created event
+                        const syntheticEvent = {
+                          layer: layer,
+                          layerType: e.layerType || (layer instanceof L.Circle ? 'circle' : 'polygon'),
                           type: 'draw:created',
                           target: map,
                           sourceTarget: map
                         };
                         
-                        console.log('🔥 Manually triggering draw:created for polygon');
-                        handleCreatedEvent(createdEvent);
-                        
-                        // Clean up the drawing
-                        this.disable();
+                        console.log('🎯 Triggering synthetic draw:created event');
+                        handleCreatedEvent(syntheticEvent);
                       }
-                    }
-                    // Call original if needed
-                    if (originalCompleteShape) {
-                      originalCompleteShape.call(this);
-                    }
-                  };
-                }
-                
-                // Listen for all layer additions during drawing
-                map.on('layeradd', (e: any) => {
-                  if (currentlyCreating && e.layer && e.layer._latlngs && !e.layer._isProcessed) {
-                    console.log('🎨 Layer added during creation mode');
-                    
-                    // Check if this is from draw toolbar
-                    const toolbar = document.querySelector('.leaflet-draw-toolbar');
-                    if (toolbar && toolbar.classList.contains('leaflet-draw-toolbar-top')) {
-                      return; // Skip toolbar layers
-                    }
-                    
-                    // Mark as processed
-                    e.layer._isProcessed = true;
-                    
-                    // Small delay to ensure drawing is complete
-                    setTimeout(() => {
-                      if (e.layer._latlngs && e.layer._latlngs[0] && e.layer._latlngs[0].length >= 3) {
-                        const createdEvent = {
-                          layer: e.layer,
-                          layerType: 'polygon',
-                          type: 'draw:created',
-                          target: map,
-                          sourceTarget: map
-                        };
-                        
-                        console.log('🎯 Triggering draw:created from layeradd');
-                        handleCreatedEvent(createdEvent);
-                      }
-                    }, 100);
+                    });
                   }
                 });
                 
@@ -548,45 +492,6 @@ export default function MapWithDrawing({
                     }
                   }
                 }, 500);
-                // Also monitor draw toolbar state changes
-                const monitorToolbar = setInterval(() => {
-                  const toolbar = document.querySelector('.leaflet-draw-toolbar-actions');
-                  if (toolbar && toolbar.style.display !== 'none') {
-                    // Drawing is in progress
-                    const finishButton = toolbar.querySelector('a[title="Finish drawing"]');
-                    const cancelButton = toolbar.querySelector('a[title="Cancel drawing"]');
-                    
-                    if (finishButton && !finishButton.hasAttribute('data-listener-added')) {
-                      finishButton.setAttribute('data-listener-added', 'true');
-                      finishButton.addEventListener('click', (e) => {
-                        console.log('🏁 Finish button clicked');
-                        // Small delay to let the shape complete
-                        setTimeout(() => {
-                          // Find the newly created layer
-                          map.eachLayer((layer: any) => {
-                            if (layer instanceof L.Polygon && !layer._processed && layer._latlngs) {
-                              layer._processed = true;
-                              const createdEvent = {
-                                layer: layer,
-                                layerType: 'polygon',
-                                type: 'draw:created',
-                                target: map,
-                                sourceTarget: map
-                              };
-                              console.log('🎯 Creating polygon from finish button');
-                              handleCreatedEvent(createdEvent);
-                            }
-                          });
-                        }, 100);
-                      });
-                    }
-                  }
-                }, 100);
-                
-                // Clean up interval on unmount
-                return () => {
-                  clearInterval(monitorToolbar);
-                };
               }
 
               if (onEdited) {
@@ -628,7 +533,6 @@ export default function MapWithDrawing({
               map.off(L.Draw.Event.DELETED);
               map.off('draw:drawstop');
               map.off('draw:editstop');
-              map.off('layeradd');
             };
           }, [map, currentlyCreating, isViewOnly, currentDrawMode, onCreated, onEdited, onDeleted]);
 

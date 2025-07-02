@@ -54,8 +54,8 @@ import {
 import { geofenceEvents } from '@/lib/events/geofenceEvents';
 
 // Constants
-const WS_URL = process.env.NEXT_PUBLIC_WS_URL || 'wss://vehitrack.my.id/websocket';
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://vehitrack.my.id/directus';
+const WS_URL = process.env.NEXT_PUBLIC_WS_URL || 'ws://vehitrack.my.id/websocket';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://vehitrack.my.id/directus';
 const RECONNECT_INTERVAL = 5000;
 const PING_INTERVAL = 30000;
 
